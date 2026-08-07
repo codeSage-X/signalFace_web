@@ -1,0 +1,509 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-geist-sans), 'Geist Fallback';
+  --font-mono: var(--font-geist-mono), 'Geist Mono Fallback';
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Status + series colours, exposed as utilities (`text-up`, `bg-magenta`…) so
+     signed values and chart marks stop being re-declared per screen. */
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-magenta: var(--magenta);
+  --color-violet: var(--violet);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+}
+
+/*
+ * DARK IS THE CANONICAL THEME.
+ *
+ * The whole product is designed on near-black plum (`#08060C`) with translucent
+ * glass surfaces floating over ambient brand blooms — so the dark palette lives
+ * on `:root` and light mode is the override, not the other way round. That also
+ * means an un-hydrated document (before next-themes stamps a class) already
+ * paints the right colours.
+ *
+ * Surfaces come in three steps and nothing should invent a fourth:
+ *   --background      the page itself
+ *   --surface         a card floating on it            (.glass-card)
+ *   --surface-raised  a tile nested inside a card      (.glass-tile)
+ */
+:root {
+  color-scheme: dark;
+  --background: #08060c;
+  --foreground: #f7f5fa;
+  --surface: #12101a;
+  --surface-raised: #161220;
+  --card: #12101a;
+  --card-foreground: #f7f5fa;
+  --popover: #161220;
+  --popover-foreground: #f7f5fa;
+  /* Brand rose as *ink* (links, signed values, accents). Solid fills use
+     .brand-gradient — its darker reds don't clear 4.5:1 as text, this does. */
+  --primary: #ff3d6e;
+  --primary-foreground: #ffffff;
+  --secondary: #a855f7;
+  --secondary-foreground: #ffffff;
+  --muted: #1b1724;
+  --muted-foreground: #8c879a;
+  --accent: #1b1724;
+  --accent-foreground: #f7f5fa;
+  --destructive: #f87171;
+  --border: #221e2c;
+  --input: #161220;
+  --ring: #ff3d6e;
+
+  /* Signed values only, and always beside an explicit +/− sign — the pair sits
+     in the CVD floor band, so colour alone must never carry direction. */
+  --up: #4ade80;
+  --down: #f87171;
+  /* The one series colour: every price line is magenta, rising or falling. */
+  --magenta: #ff2d9b;
+  --violet: #a855f7;
+
+  --chart-1: #ff2d9b;
+  --chart-2: #a855f7;
+  --chart-3: #ec2c63;
+  --chart-4: #22d3ee;
+  --chart-5: #4ade80;
+
+  --radius: 0.875rem;
+  --sidebar: #08060c;
+  --sidebar-foreground: #f7f5fa;
+  --sidebar-primary: #c4143f;
+  --sidebar-primary-foreground: #ffffff;
+  /* A raised surface, not a colour — this is a hover/active row background. */
+  --sidebar-accent: #1b1724;
+  --sidebar-accent-foreground: #f7f5fa;
+  --sidebar-border: #221e2c;
+  --sidebar-ring: #ff3d6e;
+}
+
+.light {
+  color-scheme: light;
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
+  --surface: #ffffff;
+  --surface-raised: #fafafc;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+  --primary: #be123c;
+  --primary-foreground: #ffffff;
+  --secondary: #7b2ff7;
+  --secondary-foreground: #ffffff;
+  --muted: #ececef;
+  --muted-foreground: #6e6e76;
+  --accent: #ececef;
+  --accent-foreground: #1d1d1f;
+  --destructive: #dc2626;
+  --border: #e5e5e7;
+  --input: #f5f5f7;
+  --ring: #c4143f;
+
+  --up: #15803d;
+  --down: #dc2626;
+  --magenta: #d6006e;
+  --violet: #7b2ff7;
+
+  --chart-1: #d6006e;
+  --chart-2: #7b2ff7;
+  --chart-3: #be123c;
+  --chart-4: #0891b2;
+  --chart-5: #15803d;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #c4143f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ececef;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #e5e5e7;
+  --sidebar-ring: #c4143f;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ---------------------------------------------------------------------------
+   Brand surfaces
+   --------------------------------------------------------------------------- */
+
+/*
+ * The solid brand fill: a darkened red gradient, bright rose at the top-left
+ * falling to deep crimson at the bottom-right. Used for every primary button
+ * and for the active nav pill.
+ *
+ * White text on this clears 5.9:1, so `text-white` / `text-primary-foreground`
+ * is always safe on top. Callers keep their own `hover:brightness-110`.
+ */
+.brand-gradient {
+  background-image: linear-gradient(135deg, #ec2c63 0%, #c4143f 55%, #8e1030 100%);
+}
+
+/* Soft red bloom, for the active nav pill and hero CTAs. */
+.brand-glow {
+  box-shadow: 0 0 14px 3px rgba(196, 20, 63, 0.35);
+}
+
+/* ---------------------------------------------------------------------------
+   Glass surfaces
+
+   One family, used app-wide. Four layers do the work and all four are needed —
+   drop any one and it reads as a flat panel again:
+     1. a translucent fill, so the ambient blooms behind the page tint the card;
+     2. a top-left-to-bottom-right sheen, which is what makes it look like glass
+        catching light rather than transparent plastic;
+     3. a 1px rim plus an inset top highlight, for the lit-edge effect;
+     4. a soft drop shadow, which lifts the card off the page.
+
+   Every one of these carries its own `border`, so callers must NOT also add
+   Tailwind's `border` / `border-border` classes.
+
+   Pick by role:
+     .glass-card   hero + section surfaces. Blurs its backdrop.
+     .glass-tile   rows and tiles repeated in a list. No backdrop-filter — a
+                   feed of 50 blurring layers drops frames on mobile, and over
+                   the ambient background the two are near-indistinguishable.
+     .glass-brand  promo / upsell surfaces, rimmed in brand rose.
+     .glass-chip   pills, segmented controls, icon buttons.
+     .glass-input  text inputs and other sunken controls.
+   Add .glass-hover to any of them to get the pointer lift.
+   --------------------------------------------------------------------------- */
+
+.glass-card {
+  background-color: rgba(18, 16, 26, 0.55);
+  background-image: linear-gradient(
+    150deg,
+    rgba(255, 255, 255, 0.055) 0%,
+    rgba(255, 255, 255, 0.012) 55%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 12px 32px -14px rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.glass-tile {
+  background-color: rgba(22, 18, 32, 0.72);
+  background-image: linear-gradient(
+    150deg,
+    rgba(255, 255, 255, 0.045) 0%,
+    rgba(255, 255, 255, 0.01) 55%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 8px 22px -16px rgba(0, 0, 0, 0.9);
+}
+
+.glass-brand {
+  background-color: rgba(24, 12, 18, 0.55);
+  background-image: linear-gradient(
+    150deg,
+    rgba(236, 44, 99, 0.14) 0%,
+    rgba(255, 255, 255, 0.015) 55%
+  );
+  border: 1px solid rgba(236, 44, 99, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 12px 32px -14px rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+/* Same glass with a violet cast — per-signal cards, so they read apart from
+   the neutral section surfaces around them. */
+.glass-violet {
+  background-color: rgba(18, 16, 26, 0.55);
+  background-image: linear-gradient(
+    150deg,
+    rgba(168, 85, 247, 0.16) 0%,
+    rgba(255, 255, 255, 0.02) 55%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 12px 32px -14px rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.light .glass-violet {
+  background-color: rgba(255, 255, 255, 0.75);
+  background-image: linear-gradient(
+    150deg,
+    rgba(123, 47, 247, 0.1) 0%,
+    rgba(255, 255, 255, 0.5) 55%
+  );
+  border: 1px solid rgba(123, 47, 247, 0.2);
+}
+
+/* Destructive surfaces — same glass, rimmed in the danger colour. Its own class
+   rather than `.glass-card border-destructive`, because .glass-card sets border
+   later in the cascade and would win. */
+.glass-danger {
+  background-color: rgba(26, 12, 14, 0.55);
+  background-image: linear-gradient(
+    150deg,
+    rgba(248, 113, 113, 0.1) 0%,
+    rgba(255, 255, 255, 0.012) 55%
+  );
+  border: 1px solid rgba(248, 113, 113, 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 12px 32px -14px rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(18px) saturate(140%);
+}
+
+.light .glass-danger {
+  background-color: rgba(255, 255, 255, 0.8);
+  background-image: none;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+/* Empty states: the glass is there but unfilled, so it reads as a slot waiting
+   for content rather than a card with nothing in it. */
+.glass-dashed {
+  background-color: rgba(18, 16, 26, 0.32);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+}
+
+.light .glass-dashed {
+  background-color: rgba(255, 255, 255, 0.5);
+  border: 1px dashed rgba(0, 0, 0, 0.16);
+}
+
+.glass-chip {
+  background-color: rgba(27, 23, 36, 0.7);
+  background-image: linear-gradient(
+    150deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.01) 60%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px) saturate(130%);
+}
+
+.glass-input {
+  background-color: rgba(10, 8, 16, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.glass-input:focus,
+.glass-input:focus-visible {
+  outline: none;
+  border-color: rgba(255, 61, 110, 0.55);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.5),
+    0 0 0 3px rgba(255, 61, 110, 0.18);
+}
+
+/* Pointer lift. Transform-only + opacity, so it stays on the compositor. */
+.glass-hover {
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.glass-hover:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 61, 110, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 18px 40px -16px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(255, 61, 110, 0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-hover,
+  .glass-hover:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Light mode: the same construction, inverted — frosted white over a light
+   page instead of smoked glass over near-black.
+   --------------------------------------------------------------------------- */
+
+.light .glass-card {
+  background-color: rgba(255, 255, 255, 0.72);
+  background-image: linear-gradient(
+    150deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.45) 55%
+  );
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 28px -18px rgba(24, 12, 18, 0.35);
+}
+
+.light .glass-tile {
+  background-color: rgba(255, 255, 255, 0.8);
+  background-image: none;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 6px 18px -16px rgba(24, 12, 18, 0.3);
+}
+
+.light .glass-brand {
+  background-color: rgba(255, 255, 255, 0.75);
+  background-image: linear-gradient(
+    150deg,
+    rgba(236, 44, 99, 0.1) 0%,
+    rgba(255, 255, 255, 0.5) 55%
+  );
+  border: 1px solid rgba(196, 20, 63, 0.22);
+}
+
+.light .glass-chip {
+  background-color: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.light .glass-input {
+  background-color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.light .glass-hover:hover {
+  border-color: rgba(196, 20, 63, 0.3);
+  box-shadow: 0 16px 34px -20px rgba(24, 12, 18, 0.4);
+}
+
+/* ---------------------------------------------------------------------------
+   Ambient backdrop
+
+   The glass has to blur *something*. This paints the brand blooms the surfaces
+   float over: rose at the top-left, violet bleeding in from the right, plus a
+   faint vignette so the page edges fall away. Fixed, so it doesn't scroll with
+   content, and inert to the pointer.
+   --------------------------------------------------------------------------- */
+.app-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(60rem 40rem at 8% -8%, rgba(196, 20, 63, 0.26), transparent 62%),
+    radial-gradient(48rem 36rem at 104% 12%, rgba(168, 85, 247, 0.16), transparent 60%),
+    radial-gradient(40rem 30rem at 78% 108%, rgba(236, 44, 99, 0.12), transparent 60%);
+}
+
+.light .app-ambient {
+  background-image:
+    radial-gradient(60rem 40rem at 8% -8%, rgba(196, 20, 63, 0.1), transparent 62%),
+    radial-gradient(48rem 36rem at 104% 12%, rgba(123, 47, 247, 0.07), transparent 60%);
+}
+
+/* Section headings — the one place a gradient is allowed on text. */
+.brand-text-gradient {
+  background-image: linear-gradient(100deg, #ffffff 0%, #ffd9e3 40%, #ff6f98 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.light .brand-text-gradient {
+  background-image: linear-gradient(100deg, #1d1d1f 0%, #8e1030 60%, #c4143f 100%);
+}
+
+/*
+ * Thin, unobtrusive scrollbars — a full-bleed grey gutter breaks the glass.
+ *
+ * In `base` on purpose: screens that hide their scrollbar entirely do it with
+ * utilities (`[scrollbar-width:none]`), and utilities only win over a layered
+ * rule. Unlayered, this would override them and the feed's scrollbar would come
+ * back.
+ */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  }
+
+  .light * {
+    scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.14);
+    border-radius: 9999px;
+  }
+
+  .light *::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.18);
+  }
+}
