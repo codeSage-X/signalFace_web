@@ -1,6 +1,6 @@
 import { useAuth } from './stores';
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3005/api';
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://signalface-api.onrender.com/api';
 
 export class ApiError extends Error {
   code?: string;
