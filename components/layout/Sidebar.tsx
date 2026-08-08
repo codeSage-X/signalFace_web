@@ -19,13 +19,14 @@ import {
   faHistory,
   faCompass,
   faUserGroup,
-  faUpload,
   faGear,
   faSignOut,
 } from '@fortawesome/free-solid-svg-icons';
 
-// Dashboard is deliberately absent — it's reached from the profile page instead.
-const navItems = [
+// Dashboard is deliberately absent — it's reached from the profile page instead,
+// and Upload lives in the top bar's action pill rather than the nav list.
+// Exported so the mobile drawer offers exactly the same destinations.
+export const navItems = [
   { href: '/app/for-you', label: 'For You', icon: faFire },
   { href: '/app/explore', label: 'Explore', icon: faCompass },
   { href: '/app/creators', label: 'Creators', icon: faUsers },
@@ -37,7 +38,6 @@ const navItems = [
   { href: '/app/watchlist', label: 'Watchlist', icon: faHeart },
   { href: '/app/rewards', label: 'Rewards', icon: faGift },
   { href: '/app/activity', label: 'Activity', icon: faHistory },
-  { href: '/app/upload', label: 'Upload', icon: faUpload },
 ];
 
 export const Sidebar = () => {

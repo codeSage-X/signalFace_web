@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { BottomTabBar } from '@/components/layout/BottomTabBar';
@@ -20,6 +21,11 @@ export default function AppLayout({
   useMyRealmSync();
   const { becomeCreatorOpen, setBecomeCreatorOpen } = useProfileMode();
 
+  // The feed runs edge-to-edge behind the tab bar, so it can't reserve space for
+  // it the way the scrolling pages do.
+  const pathname = usePathname();
+  const immersive = pathname === '/app/for-you';
+
   return (
     <div className="flex h-screen bg-background">
       {/* What every glass surface in the app blurs against. Fixed and inert, so
@@ -29,7 +35,9 @@ export default function AppLayout({
       <Sidebar />
       <div className="relative z-10 flex-1 flex flex-col lg:ml-64 min-w-0">
         <TopBar />
-        <main className="flex-1 overflow-y-auto pb-20 lg:pb-0 min-h-0">
+        <main
+          className={`flex-1 overflow-y-auto min-h-0 ${immersive ? '' : 'pb-20 lg:pb-0'}`}
+        >
           {children}
         </main>
         <BottomTabBar />

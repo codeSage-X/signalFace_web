@@ -690,19 +690,23 @@ function FeedItem({
   return (
     <div
       ref={ref}
-      className="h-full snap-start flex items-center justify-center px-4 lg:px-10"
+      className="h-full snap-start flex items-center justify-center lg:px-10"
     >
-      {/* Card + actions side by side */}
-      <div className="flex items-end gap-3 h-full w-full max-w-xs sm:max-w-sm lg:max-w-none lg:w-auto py-4">
+      {/* Mobile is edge-to-edge with the rail floating over the media; from `lg`
+          the card becomes a fixed-width panel and the rail sits beside it. The
+          wrapper is `relative` so one rail instance can do both jobs. */}
+      <div className="relative flex items-end h-full w-full lg:w-auto lg:gap-3 lg:py-4">
         {/* Media card */}
-        <div className="relative flex-shrink-0 w-full lg:w-[390px] xl:w-[500px] h-full rounded-2xl overflow-hidden bg-black shadow-2xl ring-1 ring-white/10">
+        <div className="relative w-full h-full overflow-hidden bg-black lg:flex-shrink-0 lg:w-[390px] xl:w-[500px] lg:rounded-2xl lg:shadow-2xl lg:ring-1 lg:ring-white/10">
           {post.kind === 'video' && <VideoContent post={post} isActive={isActive} />}
           {post.kind === 'image' && !isCarousel && <PhotoContent post={post} />}
           {isCarousel && <CarouselContent post={post} />}
           {post.kind === 'text' && <TextContent post={post} index={index} />}
 
-          {/* Bottom overlay */}
-          <div className="absolute bottom-0 left-0 right-0 px-4 pt-16 pb-5 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none">
+          {/* Bottom overlay. On mobile the media runs under the fixed tab bar, so
+              the caption keeps clear of it — and of the rail on its right. Left and
+              right are set separately because `px-*` and `pr-*` would collide. */}
+          <div className="absolute bottom-0 left-0 right-0 pl-4 pr-20 pt-16 pb-24 lg:pr-4 lg:pb-5 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none">
             {/* A realm post is credited to the page, with the owner named just
                 below so attribution is never hidden. */}
             <div className="flex items-center gap-1.5 mb-1 pointer-events-auto flex-wrap">
@@ -753,16 +757,19 @@ function FeedItem({
           </div>
         </div>
 
-        {/* Action icons — right of card */}
-        <ActionColumn
-          post={post}
-          followPending={followPending}
-          onLike={onLike}
-          onOpenComments={onOpenComments}
-          onBookmark={onBookmark}
-          onShare={onShare}
-          onToggleFollow={onToggleFollow}
-        />
+        {/* Action icons — over the media on mobile, right of the card on desktop.
+            `lg:static` hands it back to the flex row so nothing is clipped. */}
+        <div className="absolute right-1.5 bottom-24 z-20 lg:static lg:right-auto lg:bottom-auto lg:z-auto">
+          <ActionColumn
+            post={post}
+            followPending={followPending}
+            onLike={onLike}
+            onOpenComments={onOpenComments}
+            onBookmark={onBookmark}
+            onShare={onShare}
+            onToggleFollow={onToggleFollow}
+          />
+        </div>
       </div>
     </div>
   );

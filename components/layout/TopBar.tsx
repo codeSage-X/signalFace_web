@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/stores';
-import { Bell, Search, Settings, User, LogOut, X } from 'lucide-react';
+import { Bell, Search, Settings, User, LogOut, X, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BrandMark } from '@/components/BrandMark';
+import { MobileNavDrawer } from '@/components/layout/MobileNavDrawer';
 import { CreatorMenuSection } from '@/components/creator/CreatorMenuSection';
 import { useProfileSwitch } from '@/hooks/useCreatorProfile';
 
@@ -133,12 +134,16 @@ export const TopBar = () => {
             <Bell size={19} />
           </Link>
 
+          {/* Upload replaced Settings here — Settings is still one click away in the
+              sidebar footer and the account menu below, whereas uploading had no
+              home outside a nav list. */}
           <Link
-            href="/app/settings"
-            title="Settings"
+            href="/app/upload"
+            title="Upload"
+            aria-label="Upload"
             className="w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
           >
-            <Settings size={19} />
+            <Plus size={21} strokeWidth={2.5} />
           </Link>
 
           {user ? (
@@ -159,10 +164,15 @@ export const TopBar = () => {
       {/* Mobile: there's no sidebar, so the bar still carries brand + search */}
       <header className="lg:hidden flex h-14 items-center justify-between px-4 sticky top-0 z-30
         bg-background/70 backdrop-blur-xl border-b border-white/[0.06]">
-        <Link href="/app/for-you" className="flex items-center gap-2">
-          <BrandMark size="sm" />
-          <span className="font-bold text-foreground text-base tracking-wide">SIGNAL FACE</span>
-        </Link>
+        <div className="flex items-center gap-2 min-w-0">
+          <MobileNavDrawer />
+          <Link href="/app/for-you" className="flex items-center gap-2 min-w-0">
+            <BrandMark size="sm" />
+            <span className="font-bold text-foreground text-base tracking-wide truncate">
+              SIGNAL FACE
+            </span>
+          </Link>
+        </div>
 
         {searchOpen && (
           <div className="absolute inset-0 bg-background/95 backdrop-blur-xl flex items-center px-4 gap-3 z-10">

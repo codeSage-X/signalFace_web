@@ -207,6 +207,18 @@ export const walletApi = {
   getMe: () => request<WalletOverview>('/wallet/me'),
 };
 
+/** A person in the followers / following lists. */
+export interface FollowPerson {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  creatorStatus: string;
+  followersCount: number;
+  /** Whether the viewer follows them — always true in the `following` list. */
+  isFollowedByMe: boolean;
+}
+
 export const usersApi = {
   getMe: () => request<UserProfile>('/users/me'),
   updateProfile: (body: { bio?: string; websiteUrl?: string }) =>
@@ -231,6 +243,12 @@ export const usersApi = {
     formData.append('avatar', file);
     return requestForm<UserProfile>('/users/me/avatar', formData, { method: 'POST' });
   },
+  /** Accounts the viewer follows. */
+  following: (cursor?: string | null, limit?: number) =>
+    request<Page<FollowPerson>>(`/users/me/following${pageQuery(cursor, limit)}`),
+  /** Accounts following the viewer. */
+  followers: (cursor?: string | null, limit?: number) =>
+    request<Page<FollowPerson>>(`/users/me/followers${pageQuery(cursor, limit)}`),
 };
 
 // ─── Posts ────────────────────────────────────────────────────────────────────
