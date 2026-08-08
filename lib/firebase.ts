@@ -3,6 +3,8 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import {
   getAuth,
+  setPersistence,
+  browserLocalPersistence,
   signInWithPopup,
   GoogleAuthProvider,
   signOut,
@@ -37,6 +39,14 @@ export async function signInWithGoogle(): Promise<string> {
   const provider = new GoogleAuthProvider();
   // Always let the user pick which Google account, instead of silently reusing the last one.
   provider.setCustomParameters({ prompt: 'select_account' });
+
+  // `getAuth()` defaults to IndexedDB persistence, whose store listens for
+  // `visibilitychange` and closes itself the moment the document goes hidden —
+  // after which every read throws a bare `Error('Database is closing/hidden')`.
+  // Opening the Google popup is exactly what hides the document, so the sign-in
+  // races its own persistence layer and loses. localStorage persistence is the
+  // SDK's own fallback when IndexedDB is unavailable and has no such teardown.
+  await setPersistence(auth, browserLocalPersistence);
 
   const credential = await signInWithPopup(auth, provider);
   const idToken = await credential.user.getIdToken();

@@ -171,6 +171,15 @@ export const AuthGateModal = () => {
         duration: 4000,
       });
     } catch (err) {
+      // Always leave a trace. A cancelled popup is silent in the UI on purpose,
+      // but a popup the *browser* tore down reports itself as a cancellation too
+      // — and swallowing both identically makes a real failure look like the
+      // button did nothing at all.
+      console.error('[auth] Google sign-in failed', {
+        code: (err as { code?: string } | null)?.code,
+        message: err instanceof Error ? err.message : String(err),
+      });
+
       if (isUserCancelledAuth(err)) return;
       addToast({
         message: err instanceof Error ? err.message : 'Google sign-in failed. Please try again.',
