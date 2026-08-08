@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
@@ -17,9 +18,15 @@ import { useAuth } from '@/lib/stores';
  */
 export const MobileNavDrawer = () => {
   const [open, setOpen] = useState(false);
+  // `createPortal` needs a DOM, which the server render doesn't have.
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Any navigation closes the drawer — including taps on the item already active.
   useEffect(() => {
@@ -55,20 +62,29 @@ export const MobileNavDrawer = () => {
         <Menu size={22} />
       </button>
 
-      {open && (
-        <div className="lg:hidden fixed inset-0 z-[60]">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => setOpen(false)}
-          />
+      {/* Portalled to <body> deliberately. The mobile header carries
+          `backdrop-blur-xl`, and backdrop-filter makes an element a containing
+          block for its fixed-position descendants — so rendering the drawer in
+          place pinned it to the header's box instead of the viewport, and the
+          header's own `z-30` capped it under the feed. From <body> it covers
+          everything, which is the whole point of a drawer. */}
+      {mounted &&
+        open &&
+        createPortal(
+          <div className="lg:hidden fixed inset-0 z-[100]">
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+              onClick={() => setOpen(false)}
+            />
 
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Navigation"
-            className="absolute inset-y-0 left-0 w-[82%] max-w-xs flex flex-col
-              bg-background/95 backdrop-blur-xl border-r border-white/[0.06] shadow-2xl"
-          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation"
+              className="absolute inset-y-0 left-0 w-[82%] max-w-xs flex flex-col
+                bg-background/95 backdrop-blur-xl border-r border-white/[0.06] shadow-2xl
+                animate-in slide-in-from-left duration-200"
+            >
             {/* Same red bloom the sidebar uses, so the drawer reads as the same surface. */}
             <div
               aria-hidden
@@ -147,8 +163,9 @@ export const MobileNavDrawer = () => {
               )}
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </>
   );
 };

@@ -18,6 +18,7 @@ import {
 } from '@/lib/api';
 import { useAuth, useToast } from '@/lib/stores';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 
 const PAGE_SIZE = 6;
 // Start fetching the next page once the viewer is this many posts from the end.
@@ -731,9 +732,7 @@ function FeedItem({
                     @{post.author.username}
                   </Link>
                   {post.author.creatorStatus === 'APPROVED' && (
-                    <span className="w-4 h-4 brand-gradient rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0">
-                      ✓
-                    </span>
+                    <VerifiedBadge size={16} />
                   )}
                 </>
               )}

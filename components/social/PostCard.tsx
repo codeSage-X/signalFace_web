@@ -19,6 +19,7 @@ import {
 import { Post } from '@/lib/types/post';
 import { mockComments } from '@/lib/mock';
 import { CommentSheet } from './CommentSheet';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 
 interface PostCardProps {
   post: Post;
@@ -245,7 +246,7 @@ export function PostCard({ post }: PostCardProps) {
         <div className="absolute bottom-0 left-0 w-full p-4 pt-10 bg-gradient-to-t from-black/80 to-transparent z-10">
           <div className="flex items-center gap-1 mb-1">
             <p className="text-white font-semibold text-sm">{post.creatorName}</p>
-            {post.verified && <span className="text-primary text-xs">✓</span>}
+            {post.verified && <VerifiedBadge size={14} />}
           </div>
           <p className="text-white/90 text-sm leading-snug">{post.caption}</p>
           {post.hashtags && (

@@ -85,7 +85,13 @@ export default function RewardsPage() {
                       : 'brand-gradient hover:brightness-110 text-primary-foreground'
                   }`}
                 >
-                  {isClaimed ? 'Claimed ✓' : 'Claim'}
+                  {isClaimed ? (
+                    <span className="inline-flex items-center justify-center gap-1.5">
+                      <CheckCircle size={15} /> Claimed
+                    </span>
+                  ) : (
+                    'Claim'
+                  )}
                 </button>
               </div>
             </div>

@@ -6,6 +6,7 @@ import { Loader2, UserPlus, UserCheck, Users } from 'lucide-react';
 import { useAuth, useToast } from '@/lib/stores';
 import { usersApi, type FollowPerson } from '@/lib/api';
 import { UserAvatar } from '@/components/UserAvatar';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 
 type Tab = 'following' | 'followers';
 
@@ -184,9 +185,7 @@ export default function FriendsPage() {
                   <p className="font-semibold text-card-foreground truncate flex items-center gap-1.5">
                     <span className="truncate">{person.displayName}</span>
                     {person.creatorStatus === 'APPROVED' && (
-                      <span className="w-4 h-4 brand-gradient rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0">
-                        ✓
-                      </span>
+                      <VerifiedBadge size={16} />
                     )}
                   </p>
                   <p className="text-sm text-muted-foreground truncate">@{person.username}</p>

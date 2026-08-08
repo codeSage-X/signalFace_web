@@ -6,6 +6,7 @@ import { Search, Loader2, Users } from 'lucide-react';
 import { signalsApi, type SignalListItem } from '@/lib/api';
 import { useToast } from '@/lib/stores';
 import { UserAvatar } from '@/components/UserAvatar';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 
 const money = (raw: string) => {
   const n = Number(raw);
@@ -122,9 +123,7 @@ export default function CreatorsPage() {
                   <Link href={`/app/u/${s.creatorUsername}`} className="min-w-0">
                     <p className="font-semibold text-card-foreground truncate flex items-center gap-1.5">
                       <span className="truncate">{s.creatorName}</span>
-                      <span className="w-4 h-4 brand-gradient rounded-full flex items-center justify-center text-[9px] text-white font-bold flex-shrink-0">
-                        ✓
-                      </span>
+                      <VerifiedBadge size={16} />
                     </p>
                     <p className="text-sm text-muted-foreground truncate">
                       @{s.creatorUsername}

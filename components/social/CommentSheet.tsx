@@ -21,7 +21,8 @@ export function CommentSheet({ initialComments, onClose }: CommentSheetProps) {
     const newComment: Comment = {
       id: `local-${Date.now()}`,
       author: 'you',
-      avatar: '🙂',
+      // Rendered as initials by the avatar component; no emoji placeholder.
+      avatar: '',
       text: draft.trim(),
       timestamp: 'now',
       likes: 0,
