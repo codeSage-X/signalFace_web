@@ -31,6 +31,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
+import { externalHref, displayUrl } from '@/lib/utils';
 
 const PAGE_SIZE = 12;
 const TABS = ['Posts', 'About'] as const;
@@ -296,8 +297,12 @@ export default function CreatorRealmPage() {
               </span>
             </div>
             <p className="text-sm text-muted-foreground">@{realm.slug}</p>
-            {realm.tagline && (
+            {realm.tagline ? (
               <p className="mt-1.5 text-sm text-foreground max-w-xl">{realm.tagline}</p>
+            ) : (
+              canManage && (
+                <AddPrompt onClick={() => setEditing(true)} label="Add a tagline" />
+              )
             )}
           </div>
         </div>
@@ -497,7 +502,14 @@ export default function CreatorRealmPage() {
               }
             />
           ) : (
-            <AboutPanel realm={realm} />
+            <AboutPanel
+              realm={realm}
+              canManage={canManage}
+              onEdit={() => {
+                setTab('Posts');
+                setEditing(true);
+              }}
+            />
           )}
         </div>
       </div>
@@ -524,7 +536,29 @@ const Stat = ({
   </div>
 );
 
-const AboutPanel = ({ realm }: { realm: Realm }) => (
+/**
+ * An unset field the viewer owns. Blank space tells them nothing, so name the
+ * thing that's missing and make it the button that fills it in.
+ */
+const AddPrompt = ({ onClick, label }: { onClick: () => void; label: string }) => (
+  <button
+    onClick={onClick}
+    className="mt-1.5 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+  >
+    <Pencil size={12} />
+    {label}
+  </button>
+);
+
+const AboutPanel = ({
+  realm,
+  canManage,
+  onEdit,
+}: {
+  realm: Realm;
+  canManage: boolean;
+  onEdit: () => void;
+}) => (
   <div className="max-w-xl space-y-4 py-2">
     <Row label="Category" value={REALM_CATEGORY_LABELS[realm.category]} />
     <Row label="Handle" value={`@${realm.slug}`} />
@@ -538,20 +572,27 @@ const AboutPanel = ({ realm }: { realm: Realm }) => (
     />
     <Row label="Owner" value={`@${realm.owner.username}`} />
 
-    {realm.websiteUrl && (
+    {realm.websiteUrl ? (
       <div>
         <p className="text-xs text-muted-foreground mb-1">Website</p>
         <a
-          href={realm.websiteUrl}
+          href={externalHref(realm.websiteUrl)}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1.5 text-sm text-primary hover:underline"
         >
           <Link2 size={13} />
-          {realm.websiteUrl.replace(/^https?:\/\//, '')}
+          {displayUrl(realm.websiteUrl)}
           <ExternalLink size={11} />
         </a>
       </div>
+    ) : (
+      canManage && (
+        <div>
+          <p className="text-xs text-muted-foreground mb-1">Website</p>
+          <AddPrompt onClick={onEdit} label="Add a link" />
+        </div>
+      )
     )}
 
     {realm.description ? (
@@ -560,6 +601,11 @@ const AboutPanel = ({ realm }: { realm: Realm }) => (
         <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
           {realm.description}
         </p>
+      </div>
+    ) : canManage ? (
+      <div>
+        <p className="text-xs text-muted-foreground mb-1">About</p>
+        <AddPrompt onClick={onEdit} label="Tell people what your page is about" />
       </div>
     ) : (
       <p className="text-sm text-muted-foreground italic">No description yet.</p>

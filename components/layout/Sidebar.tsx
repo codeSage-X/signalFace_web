@@ -46,6 +46,7 @@ export const Sidebar = () => {
   const { addToast } = useToast();
   const router = useRouter();
   const [balance, setBalance] = useState<number | null>(null);
+  const [searchDraft, setSearchDraft] = useState('');
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -118,20 +119,32 @@ export const Sidebar = () => {
           </Link>
         </div>
 
-        {/* Search — lives here rather than in a top bar */}
+        {/* Search — lives here rather than in a top bar. Submitting hands off to
+            the search page, which owns the query from the URL. */}
         <div className="px-4 pb-2">
-          <div className="relative">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const term = searchDraft.trim();
+              if (!term) return;
+              router.push(`/app/search?q=${encodeURIComponent(term)}`);
+            }}
+            className="relative"
+          >
             <Search
               size={16}
               className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none"
             />
             <input
-              type="text"
+              type="search"
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
               placeholder="Search"
+              aria-label="Search"
               className="w-full pl-10 pr-4 py-2.5 rounded-full text-sm text-white placeholder-white/40
                 border border-white/10 bg-white/[0.04] focus:outline-none focus:ring-2 focus:ring-primary"
             />
-          </div>
+          </form>
         </div>
 
         {/* Nav + panels share one scroll area so short viewports still reach the cards. */}

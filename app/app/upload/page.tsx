@@ -3,12 +3,19 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { useAuth, useToast } from '@/lib/stores';
+import { useAuth, usePostUpload, useToast } from '@/lib/stores';
 import { useProfileSwitch } from '@/hooks/useCreatorProfile';
-import { postsApi } from '@/lib/api';
+import {
+  postsApi,
+  REALM_CATEGORIES,
+  REALM_CATEGORY_LABELS,
+  type RealmCategory,
+} from '@/lib/api';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faImage, faVideo } from '@fortawesome/free-solid-svg-icons';
-import { X, Loader2, ChevronDown, Check } from 'lucide-react';
+import { X, Loader2, ChevronDown, Check, Crop } from 'lucide-react';
+import { MediaComposer } from '@/components/upload/MediaComposer';
+import type { AspectRatio } from '@/components/upload/mediaEditing';
 
 const MAX_FILES = 4;
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
@@ -22,7 +29,27 @@ interface Attachment {
 function UploadForm() {
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Progress lives in the store, not here: the publish outlives this page.
+  const {
+    status: uploadStatus,
+    start: startUpload,
+    setPercent: setUploadPercent,
+    succeed: uploadSucceeded,
+    fail: uploadFailed,
+  } = usePostUpload();
+  const isSubmitting = uploadStatus === 'uploading' || uploadStatus === 'processing';
+  // Files waiting to be framed and edited. Non-null while the composer is open;
+  // nothing is attached to the post until it returns.
+  const [composing, setComposing] = useState<{ files: File[]; isVideo: boolean } | null>(null);
+  // The post's topic. Defaults to the author's realm category when they have
+  // one, and is what makes a post findable under a category on Explore.
+  const [category, setCategory] = useState<RealmCategory | null>(null);
+  // Whether the author has touched the selector. Once they have, the realm
+  // default must stop overwriting their choice.
+  const categoryTouched = useRef(false);
+  // Framing chosen in the composer, sent alongside the post.
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('ORIGINAL');
+  const [cover, setCover] = useState<File | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const { requireAuth } = useRequireAuth();
@@ -66,6 +93,13 @@ function UploadForm() {
 
   const asRealm = postAsRealm && Boolean(realm);
 
+  // Pre-fill the topic from the author's realm once it loads — but never over an
+  // explicit choice, so switching identity can't silently rewrite their answer.
+  useEffect(() => {
+    if (categoryTouched.current) return;
+    setCategory(realm?.category ?? null);
+  }, [realm?.category]);
+
   const addFiles = (fileList: FileList | null) => {
     if (!fileList?.length) return;
 
@@ -77,7 +111,7 @@ function UploadForm() {
       return;
     }
 
-    const accepted: Attachment[] = [];
+    const accepted: File[] = [];
     for (const file of incoming.slice(0, room)) {
       if (file.size > MAX_FILE_BYTES) {
         addToast({
@@ -87,18 +121,40 @@ function UploadForm() {
         });
         continue;
       }
-      accepted.push({
-        file,
-        previewUrl: URL.createObjectURL(file),
-        isVideo: file.type.startsWith('video/'),
-      });
+      accepted.push(file);
     }
+
+    if (!accepted.length) return;
 
     if (incoming.length > room) {
       addToast({ message: `Only the first ${room} file(s) were added.`, type: 'info', duration: 4000 });
     }
 
-    setAttachments((prev) => [...prev, ...accepted]);
+    // Straight into the composer: framing and editing happen before anything is
+    // attached, so what sits in the form is already what will be posted.
+    setComposing({
+      files: accepted,
+      isVideo: accepted.some((file) => file.type.startsWith('video/')),
+    });
+  };
+
+  /** The composer hands back processed files plus the framing it chose. */
+  const handleComposed = (result: {
+    files: File[];
+    aspectRatio: AspectRatio;
+    cover?: File;
+  }) => {
+    setAttachments((prev) => [
+      ...prev,
+      ...result.files.map((file) => ({
+        file,
+        previewUrl: URL.createObjectURL(file),
+        isVideo: file.type.startsWith('video/'),
+      })),
+    ]);
+    setAspectRatio(result.aspectRatio);
+    setCover(result.cover ?? null);
+    setComposing(null);
   };
 
   const removeAttachment = (index: number) => {
@@ -110,34 +166,53 @@ function UploadForm() {
   };
 
   const handlePost = () => {
-    requireAuth(async () => {
+    requireAuth(() => {
       if (!content.trim() && attachments.length === 0) {
         addToast({ message: 'Write something or attach media first.', type: 'error', duration: 4000 });
         return;
       }
 
-      setIsSubmitting(true);
-      try {
-        await postsApi.create(
-          content,
-          attachments.map((a) => a.file),
-          asRealm ? realm?.id : null,
-        );
+      // Captured before the form is cleared, so a retry republishes exactly what
+      // was composed rather than whatever the emptied form now holds.
+      const payload = {
+        body: content,
+        files: attachments.map((a) => a.file),
+        realmId: asRealm ? realm?.id ?? null : null,
+        aspectRatio,
+        cover: cover ?? undefined,
+        category,
+      };
 
-        attachments.forEach((a) => URL.revokeObjectURL(a.previewUrl));
-        setContent('');
-        setAttachments([]);
-        addToast({ message: 'Post published!', type: 'success', duration: 4000 });
-        router.push('/app/for-you');
-      } catch (err) {
-        addToast({
-          message: err instanceof Error ? err.message : 'Could not publish your post.',
-          type: 'error',
-          duration: 5000,
-        });
-      } finally {
-        setIsSubmitting(false);
-      }
+      const publish = () => {
+        startUpload(publish);
+
+        postsApi
+          .create(payload.body, payload.files, payload.realmId, {
+            onProgress: setUploadPercent,
+            aspectRatio: payload.aspectRatio,
+            cover: payload.cover,
+            category: payload.category,
+          })
+          .then(() => uploadSucceeded())
+          .catch((err) => {
+            uploadFailed(
+              err instanceof Error ? err.message : 'Could not publish your post.',
+            );
+          });
+      };
+
+      publish();
+
+      // Clear and leave immediately, without waiting for the request. The bar in
+      // the layout owns the rest, so the composer is gone the moment Post is
+      // pressed rather than sitting there for the length of a video upload.
+      attachments.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+      setContent('');
+      setAttachments([]);
+      setAspectRatio('ORIGINAL');
+      setCover(null);
+      setCategory(realm?.category ?? null);
+      router.push('/app/for-you');
     });
   };
 
@@ -308,10 +383,51 @@ function UploadForm() {
             <FontAwesomeIcon icon={faVideo} className="h-4 w-4" />
             Video
           </button>
-          <span className="ml-auto self-center text-xs text-muted-foreground">
+          <span className="ml-auto self-center flex items-center gap-3 text-xs text-muted-foreground">
+            {attachments.length > 0 && (
+              <span className="flex items-center gap-1">
+                <Crop size={11} />
+                {aspectRatio === 'ORIGINAL' ? 'Original' : aspectRatio}
+                {cover && ' · cover set'}
+              </span>
+            )}
             {attachments.length}/{MAX_FILES} files
           </span>
         </div>
+
+        {/* Topic. Without one a post can never be found under a category on
+            Explore, which is why it defaults to the author's realm rather than
+            to nothing. */}
+        <div>
+          <label htmlFor="post-category" className="block text-sm font-medium text-foreground mb-1.5">
+            Topic
+          </label>
+          <select
+            id="post-category"
+            value={category ?? ''}
+            onChange={(e) => {
+              categoryTouched.current = true;
+              setCategory((e.target.value || null) as RealmCategory | null);
+            }}
+            className="w-full sm:w-64 px-3 py-2 rounded-lg glass-input text-sm text-foreground
+              focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">No topic</option>
+            {REALM_CATEGORIES.map((option) => (
+              <option key={option} value={option}>
+                {REALM_CATEGORY_LABELS[option]}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {category
+              ? 'People browsing this topic on Explore will find this post.'
+              : 'Without a topic this post won’t appear under any category on Explore.'}
+          </p>
+        </div>
+
+        {/* Progress and failure are reported by the bar pinned to the top of the
+            app, since the publish keeps running after this page is left. */}
 
         {/* Post Button */}
         <div className="flex justify-end gap-3">
@@ -332,6 +448,15 @@ function UploadForm() {
           </button>
         </div>
       </div>
+
+      {composing && (
+        <MediaComposer
+          files={composing.files}
+          isVideo={composing.isVideo}
+          onCancel={() => setComposing(null)}
+          onDone={handleComposed}
+        />
+      )}
 
       {/* Tips */}
       <div className="glass-card rounded-2xl p-4 space-y-2">

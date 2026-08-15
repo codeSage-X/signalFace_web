@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import NextLink from 'next/link';
 import { useAuth } from '@/lib/stores';
 import { useToast } from '@/lib/stores';
-import { usersApi, postsApi, ApiError, type FeedPost } from '@/lib/api';
+import { usersApi, postsApi, ApiError, type FeedPost, type Page } from '@/lib/api';
 import { CreatorMenuSection } from '@/components/creator/CreatorMenuSection';
+import { ImmersiveFeed } from '@/components/feed/ImmersiveFeed';
 import {
   Share2,
   Link2,
@@ -21,6 +22,7 @@ import {
   Loader2,
   LayoutDashboard,
   LayoutGrid,
+  UserCircle,
   FileText,
   Eye,
   Image as ImageIcon,
@@ -29,20 +31,61 @@ import {
   Trash2,
   BookmarkX,
 } from 'lucide-react';
+import { externalHref, displayUrl } from '@/lib/utils';
 
 const MAX_PINNED_POSTS = 3;
 const PAGE_SIZE = 12;
 const TABS = ['Posts', 'Reposts', 'Favorites', 'Liked'] as const;
-const SORTS = ['Latest', 'Popular', 'Oldest'] as const;
 
 type Tab = (typeof TABS)[number];
-type Sort = (typeof SORTS)[number];
+
+/** The three tabs that read a saved collection rather than the user's own posts. */
+type CollectionTab = Exclude<Tab, 'Posts'>;
+
+const COLLECTION_FETCHERS: Record<
+  CollectionTab,
+  (cursor: string | null, limit?: number) => Promise<Page<FeedPost>>
+> = {
+  Reposts: (cursor, limit) => postsApi.reposts(cursor, limit),
+  Favorites: (cursor, limit) => postsApi.bookmarks(cursor, limit),
+  Liked: (cursor, limit) => postsApi.liked(cursor, limit),
+};
+
+const COLLECTION_EMPTY_COPY: Record<CollectionTab, { title: string; body: string }> = {
+  Reposts: {
+    title: 'No reposts yet',
+    body: 'Repost a post and it will show up here on your profile.',
+  },
+  Favorites: {
+    title: 'No favorites yet',
+    body: 'Tap the bookmark icon on any post to save it here.',
+  },
+  Liked: {
+    title: 'No liked posts yet',
+    body: 'Posts you like will collect here.',
+  },
+};
+
+interface CollectionState {
+  items: FeedPost[];
+  cursor: string | null;
+  loading: boolean;
+  loaded: boolean;
+}
+
+const EMPTY_COLLECTION: CollectionState = {
+  items: [],
+  cursor: null,
+  loading: false,
+  loaded: false,
+};
+
+const isCollectionTab = (tab: Tab): tab is CollectionTab => tab !== 'Posts';
 
 export default function ProfilePage() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, isAuthenticated, setAuthModalOpen } = useAuth();
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<Tab>('Posts');
-  const [activeSort, setActiveSort] = useState<Sort>('Latest');
   const [isEditing, setIsEditing] = useState(false);
   const [bioInput, setBioInput] = useState(user?.bio ?? '');
   const [linkInput, setLinkInput] = useState(user?.websiteUrl ?? '');
@@ -59,11 +102,15 @@ export default function ProfilePage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Favorites (bookmarks) grid — loaded lazily the first time the tab opens.
-  const [favorites, setFavorites] = useState<FeedPost[]>([]);
-  const [favoritesLoading, setFavoritesLoading] = useState(false);
-  const [favoritesLoaded, setFavoritesLoaded] = useState(false);
-  const [favoritesCursor, setFavoritesCursor] = useState<string | null>(null);
+  // Reposts / Favorites / Liked are the same grid over three endpoints, so they
+  // share one shape and are each loaded lazily the first time their tab opens.
+  const [collections, setCollections] = useState<Record<CollectionTab, CollectionState>>({
+    Reposts: EMPTY_COLLECTION,
+    Favorites: EMPTY_COLLECTION,
+    Liked: EMPTY_COLLECTION,
+  });
+  // Which post the immersive viewer opened on, and from which tab's list.
+  const [viewer, setViewer] = useState<{ tab: Tab; index: number } | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   // Read inside the observer callback so it never needs to be a dependency.
   const loadingMoreRef = useRef(false);
@@ -79,12 +126,16 @@ export default function ProfilePage() {
     : '??';
 
   useEffect(() => {
+    // Hooks run before this component's signed-out early return, so the guard
+    // has to be here too — otherwise a logged-out visitor still fires /users/me.
+    if (!isAuthenticated) return;
+
     usersApi
       .getMe()
       .then((profile) => updateUser(profile))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isAuthenticated]);
 
   // Close the profile actions menu on an outside click or Escape.
   useEffect(() => {
@@ -174,59 +225,116 @@ export default function ProfilePage() {
     return () => observer.disconnect();
   }, [nextCursor, loadMore, activeTab]);
 
-  // Favorites are only fetched once the tab is actually opened.
+  const patchCollection = useCallback((tab: CollectionTab, patch: Partial<CollectionState>) => {
+    setCollections((prev) => ({ ...prev, [tab]: { ...prev[tab], ...patch } }));
+  }, []);
+
+  /**
+   * Tabs whose first page has already been requested.
+   *
+   * A ref rather than reading `collections.loaded`, because this effect writes to
+   * `collections` — depending on it meant every write re-ran the effect, which
+   * fired another request before `loaded` could flip, in an unbounded loop.
+   */
+  const requestedRef = useRef<Set<CollectionTab>>(new Set());
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
+
+  // A collection is only fetched once its tab is actually opened.
   useEffect(() => {
-    if (activeTab !== 'Favorites' || favoritesLoaded) return;
+    if (!isAuthenticated || !isCollectionTab(activeTab)) return;
 
-    let cancelled = false;
-    setFavoritesLoading(true);
+    const tab = activeTab;
+    if (requestedRef.current.has(tab)) return;
+    requestedRef.current.add(tab);
 
-    postsApi
-      .bookmarks(null, PAGE_SIZE)
+    patchCollection(tab, { loading: true });
+
+    COLLECTION_FETCHERS[tab](null, PAGE_SIZE)
       .then((page) => {
-        if (cancelled) return;
-        setFavorites(page.items);
-        setFavoritesCursor(page.nextCursor);
-        setFavoritesLoaded(true);
+        // Written even if the user has since switched tabs: the result is stored
+        // under its own tab, so a late arrival lands in the right place.
+        if (mountedRef.current) {
+          patchCollection(tab, { items: page.items, cursor: page.nextCursor, loaded: true });
+        }
       })
       .catch((err) => {
-        if (cancelled) return;
+        // Clear the mark so returning to the tab retries rather than showing
+        // an empty grid forever.
+        requestedRef.current.delete(tab);
+        if (!mountedRef.current) return;
         addToast({
-          message: err instanceof Error ? err.message : 'Could not load your favorites.',
+          message:
+            err instanceof Error ? err.message : `Could not load your ${tab.toLowerCase()}.`,
           type: 'error',
           duration: 4000,
         });
       })
       .finally(() => {
-        if (!cancelled) setFavoritesLoading(false);
+        if (mountedRef.current) patchCollection(tab, { loading: false });
       });
+  }, [isAuthenticated, activeTab, patchCollection, addToast]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, favoritesLoaded, addToast]);
+  const loadMoreCollection = async (tab: CollectionTab) => {
+    const { cursor } = collections[tab];
+    if (!cursor) return;
 
-  const loadMoreFavorites = async () => {
-    if (!favoritesCursor) return;
     try {
-      const page = await postsApi.bookmarks(favoritesCursor, PAGE_SIZE);
-      setFavorites((prev) => [...prev, ...page.items]);
-      setFavoritesCursor(page.nextCursor);
+      const page = await COLLECTION_FETCHERS[tab](cursor, PAGE_SIZE);
+      setCollections((prev) => {
+        const seen = new Set(prev[tab].items.map((p) => p.id));
+        return {
+          ...prev,
+          [tab]: {
+            ...prev[tab],
+            items: [...prev[tab].items, ...page.items.filter((p) => !seen.has(p.id))],
+            cursor: page.nextCursor,
+          },
+        };
+      });
     } catch {
-      addToast({ message: 'Could not load more favorites.', type: 'error', duration: 4000 });
+      addToast({
+        message: `Could not load more ${tab.toLowerCase()}.`,
+        type: 'error',
+        duration: 4000,
+      });
     }
   };
 
+  /** The list the active tab is showing — also what the viewer scrolls through. */
+  const activeItems = isCollectionTab(activeTab) ? collections[activeTab].items : posts;
+
+  /**
+   * A post edited inside the viewer (liked, saved, reposted) is written back to
+   * whichever grids hold it, so closing the viewer doesn't reveal stale counts.
+   */
+  const syncPost = useCallback((updated: FeedPost) => {
+    const merge = (list: FeedPost[]) =>
+      list.map((p) => (p.id === updated.id ? { ...p, ...updated } : p));
+
+    setPosts(merge);
+    setCollections((prev) => ({
+      Reposts: { ...prev.Reposts, items: merge(prev.Reposts.items) },
+      Favorites: { ...prev.Favorites, items: merge(prev.Favorites.items) },
+      Liked: { ...prev.Liked, items: merge(prev.Liked.items) },
+    }));
+  }, []);
+
   // Unsaving from the Favorites grid removes the card immediately.
   const handleRemoveFavorite = async (post: FeedPost) => {
-    const snapshot = favorites;
-    setFavorites((prev) => prev.filter((p) => p.id !== post.id));
+    const snapshot = collections.Favorites.items;
+    patchCollection('Favorites', { items: snapshot.filter((p) => p.id !== post.id) });
 
     try {
       await postsApi.toggleBookmark(post.id);
       addToast({ message: 'Removed from favorites.', type: 'success', duration: 2500 });
     } catch {
-      setFavorites(snapshot);
+      patchCollection('Favorites', { items: snapshot });
       addToast({ message: 'Could not update favorites.', type: 'error', duration: 4000 });
     }
   };
@@ -329,6 +437,30 @@ export default function ProfilePage() {
     navigator.clipboard?.writeText(window.location.href);
     addToast({ message: 'Profile link copied!', type: 'info', duration: 2500 });
   };
+
+  // This page is "your profile" — with no session there is no profile to show,
+  // and every request it makes would 401. Prompt for sign-in instead of rendering
+  // a shell full of empty state.
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center text-center px-6">
+        <div className="w-16 h-16 rounded-full bg-sidebar-accent flex items-center justify-center mb-4">
+          <UserCircle size={26} className="text-muted-foreground" />
+        </div>
+        <p className="text-foreground font-semibold text-lg">Sign in to see your profile</p>
+        <p className="text-muted-foreground text-sm mt-1 mb-5 max-w-sm">
+          Your posts, reposts, favorites and liked videos all live here.
+        </p>
+        <button
+          onClick={() => setAuthModalOpen(true)}
+          className="px-6 py-2.5 rounded-xl font-semibold text-white text-sm
+            brand-gradient hover:brightness-110 transition"
+        >
+          Sign in
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-12">
@@ -493,31 +625,39 @@ export default function ProfilePage() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-1">
-                {bio && (
+              // Only the owner reaches this page, so an empty field is always
+              // something they can fill — prompt for it by name instead of
+              // rendering nothing and leaving them to guess.
+              <div className="space-y-1.5">
+                {bio ? (
                   <p className="text-sm text-foreground whitespace-pre-line max-w-lg">{bio}</p>
+                ) : (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+                  >
+                    <Pencil size={12} />
+                    Tell us about you
+                  </button>
                 )}
-                {link && (
+                {link ? (
                   <a
-                    href={link}
+                    href={externalHref(link)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 text-sm text-primary hover:underline"
                   >
                     <Link2 size={13} />
-                    {link.replace(/^https?:\/\//, '')}
+                    {displayUrl(link)}
                   </a>
-                )}
-                {!bio && !isEditing && (
-                  <p className="text-sm text-muted-foreground italic">
-                    No bio yet.{' '}
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="text-primary hover:underline not-italic"
-                    >
-                      Add one
-                    </button>
-                  </p>
+                ) : (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+                  >
+                    <Link2 size={12} />
+                    Add a link
+                  </button>
                 )}
               </div>
             )}
@@ -528,7 +668,7 @@ export default function ProfilePage() {
         <div className="mt-6" />
 
         {/* Tabs */}
-        <div className="flex items-center justify-between mt-0">
+        <div className="flex items-center mt-0">
           <div className="flex">
             {TABS.map((tab) => (
               <button
@@ -545,23 +685,6 @@ export default function ProfilePage() {
                 {tab === 'Favorites' && <Bookmark size={14} />}
                 {tab === 'Liked' && <Heart size={14} />}
                 {tab}
-              </button>
-            ))}
-          </div>
-
-          {/* Sort */}
-          <div className="flex items-center gap-1">
-            {SORTS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setActiveSort(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                  activeSort === s
-                    ? 'bg-foreground text-background'
-                    : 'text-muted-foreground hover:bg-sidebar-accent'
-                }`}
-              >
-                {s}
               </button>
             ))}
           </div>
@@ -610,6 +733,7 @@ export default function ProfilePage() {
                     key={p.id}
                     post={p}
                     index={i}
+                    onOpen={() => setViewer({ tab: 'Posts', index: i })}
                     onTogglePin={handleTogglePin}
                     onDelete={handleDeletePost}
                   />
@@ -630,60 +754,93 @@ export default function ProfilePage() {
               )}
             </>
           )
-        ) : activeTab === 'Favorites' ? (
-          favoritesLoading && !favoritesLoaded ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="rounded-lg aspect-[9/16] bg-white/[0.06] animate-pulse" />
-              ))}
-            </div>
-          ) : favorites.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-16 h-16 rounded-full bg-sidebar-accent flex items-center justify-center mb-4">
-                <Bookmark size={24} className="text-muted-foreground" />
-              </div>
-              <p className="text-foreground font-semibold">No favorites yet</p>
-              <p className="text-muted-foreground text-sm mt-1">
-                Tap the bookmark icon on any post to save it here.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-                {favorites.map((p, i) => (
-                  <PostGridCard
-                    key={p.id}
-                    post={p}
-                    index={i}
-                    variant="favorite"
-                    onRemoveFavorite={handleRemoveFavorite}
-                  />
-                ))}
-              </div>
+        ) : isCollectionTab(activeTab) ? (
+          (() => {
+            const { items, cursor, loading, loaded } = collections[activeTab];
+            const copy = COLLECTION_EMPTY_COPY[activeTab];
+            const EmptyIcon =
+              activeTab === 'Reposts' ? Repeat2 : activeTab === 'Favorites' ? Bookmark : Heart;
 
-              {favoritesCursor && (
-                <button
-                  onClick={loadMoreFavorites}
-                  className="w-full text-center text-primary text-sm font-medium py-4 hover:underline"
-                >
-                  Load more
-                </button>
-              )}
-            </>
-          )
-        ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-16 h-16 rounded-full bg-sidebar-accent flex items-center justify-center mb-4">
-              {activeTab === 'Reposts' && <Repeat2 size={24} className="text-muted-foreground" />}
-              {activeTab === 'Liked' && <Heart size={24} className="text-muted-foreground" />}
-            </div>
-            <p className="text-foreground font-semibold">No {activeTab.toLowerCase()} yet</p>
-            <p className="text-muted-foreground text-sm mt-1">
-              Content you {activeTab.toLowerCase()} will appear here
-            </p>
-          </div>
-        )}
+            if (loading && !loaded) {
+              return (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg aspect-[9/16] bg-white/[0.06] animate-pulse"
+                    />
+                  ))}
+                </div>
+              );
+            }
+
+            if (items.length === 0) {
+              return (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <div className="w-16 h-16 rounded-full bg-sidebar-accent flex items-center justify-center mb-4">
+                    <EmptyIcon size={24} className="text-muted-foreground" />
+                  </div>
+                  <p className="text-foreground font-semibold">{copy.title}</p>
+                  <p className="text-muted-foreground text-sm mt-1">{copy.body}</p>
+                </div>
+              );
+            }
+
+            return (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                  {items.map((p, i) => (
+                    <PostGridCard
+                      key={p.id}
+                      post={p}
+                      index={i}
+                      variant={activeTab === 'Favorites' ? 'favorite' : undefined}
+                      onOpen={() => setViewer({ tab: activeTab, index: i })}
+                      onRemoveFavorite={
+                        activeTab === 'Favorites' ? handleRemoveFavorite : undefined
+                      }
+                    />
+                  ))}
+                </div>
+
+                {cursor && (
+                  <button
+                    onClick={() => loadMoreCollection(activeTab)}
+                    className="w-full text-center text-primary text-sm font-medium py-4 hover:underline"
+                  >
+                    Load more
+                  </button>
+                )}
+              </>
+            );
+          })()
+        ) : null}
       </div>
+
+      {/*
+        Tapping a card opens the feed over the profile, scoped to the tab you were
+        on — scrolling moves to your next post in that collection, never into the
+        public feed. Seeded with the posts already loaded, so it opens instantly.
+      */}
+      {viewer && activeItems.length > 0 && (
+        <div className="fixed inset-0 z-[60] bg-black">
+          <ImmersiveFeed
+            title={viewer.tab}
+            initialPosts={activeItems}
+            initialCursor={
+              isCollectionTab(viewer.tab) ? collections[viewer.tab].cursor : nextCursor
+            }
+            initialIndex={viewer.index}
+            fetchPage={(cursor) =>
+              isCollectionTab(viewer.tab)
+                ? COLLECTION_FETCHERS[viewer.tab](cursor, PAGE_SIZE)
+                : postsApi.byUsername(username ?? '', cursor, PAGE_SIZE)
+            }
+            onClose={() => setViewer(null)}
+            onPostChanged={syncPost}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -702,6 +859,7 @@ function PostGridCard({
   post,
   index,
   variant = 'own',
+  onOpen,
   onTogglePin,
   onDelete,
   onRemoveFavorite,
@@ -711,19 +869,43 @@ function PostGridCard({
   // 'own' shows pin/delete; 'favorite' shows the author and an unsave button,
   // since saved posts usually belong to someone else.
   variant?: 'own' | 'favorite';
+  onOpen?: () => void;
   onTogglePin?: (post: FeedPost) => void;
   onDelete?: (post: FeedPost) => void;
   onRemoveFavorite?: (post: FeedPost) => void;
 }) {
-  const { kind, pinned, viewCount, body, mediaUrls } = post;
+  const { kind, pinned, viewCount, body, mediaUrls, media } = post;
   const grad = CARD_GRADIENTS[index % CARD_GRADIENTS.length];
   const preview = mediaUrls[0];
+  // More than one item earns the stacked-media marker, as on Instagram.
+  const itemCount = media?.length ?? mediaUrls.length;
 
   return (
-    <div className="relative group cursor-pointer rounded-lg overflow-hidden aspect-[9/16] bg-gradient-to-br from-[#1A1424] to-[#12101A]">
+    <div
+      onClick={onOpen}
+      // A card is an activatable thing, so give it the keyboard and semantics of
+      // one — it opens the viewer, and Enter/Space have to do the same.
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onKeyDown={
+        onOpen
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpen();
+              }
+            }
+          : undefined
+      }
+      className="relative group cursor-pointer rounded-lg overflow-hidden aspect-[9/16] bg-gradient-to-br from-[#1A1424] to-[#12101A] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    >
       {/* Media, or a gradient card carrying the text */}
       {kind === 'image' && preview ? (
         <img src={preview} alt="" className="absolute inset-0 w-full h-full object-cover" />
+      ) : kind === 'video' && post.coverUrl ? (
+        // The author picked this frame, so it beats whatever the decoder would
+        // land on — and an <img> costs far less than a <video> per grid cell.
+        <img src={post.coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
       ) : kind === 'video' && preview ? (
         <video
           src={preview}
@@ -743,6 +925,7 @@ function PostGridCard({
         </>
       )}
 
+
       {/* Pinned badge — only when actually pinned, and only on your own grid */}
       {pinned && variant === 'own' && (
         <div className="absolute top-2 left-2 brand-gradient text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
@@ -750,8 +933,11 @@ function PostGridCard({
         </div>
       )}
 
-      {/* Post kind */}
-      <div className="absolute top-2 right-2 text-white/80 drop-shadow">
+      {/* Post kind, and the item count when the post carries more than one */}
+      <div className="absolute top-2 right-2 flex items-center gap-1 text-white/80 drop-shadow">
+        {itemCount > 1 && (
+          <span className="text-[10px] font-bold leading-none">{itemCount}</span>
+        )}
         {kind === 'video' && <Play size={12} fill="currentColor" />}
         {kind === 'image' && <ImageIcon size={12} />}
         {kind === 'text' && <FileText size={12} />}
@@ -775,9 +961,11 @@ function PostGridCard({
 
       {variant === 'own' && post.isMine && (
         <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* These sit inside the card, which now opens the viewer — without
+              stopping the click, pinning would also open the post. */}
           <button
             type="button"
-            onClick={() => onTogglePin?.(post)}
+            onClick={(e) => { e.stopPropagation(); onTogglePin?.(post); }}
             title={pinned ? 'Unpin' : 'Pin to top'}
             className="w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black"
           >
@@ -785,7 +973,7 @@ function PostGridCard({
           </button>
           <button
             type="button"
-            onClick={() => onDelete?.(post)}
+            onClick={(e) => { e.stopPropagation(); onDelete?.(post); }}
             title="Delete post"
             className="w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-red-600"
           >
@@ -797,7 +985,7 @@ function PostGridCard({
       {variant === 'favorite' && (
         <button
           type="button"
-          onClick={() => onRemoveFavorite?.(post)}
+          onClick={(e) => { e.stopPropagation(); onRemoveFavorite?.(post); }}
           title="Remove from favorites"
           className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black opacity-0 group-hover:opacity-100 transition-opacity"
         >

@@ -7,6 +7,7 @@ import {
   Link2, Play, Eye, FileText, Image as ImageIcon,
   Loader2, ArrowLeft, UserPlus, UserCheck, LayoutGrid,
 } from 'lucide-react';
+import { externalHref, displayUrl } from '@/lib/utils';
 import { postsApi, usersApi, type FeedPost, type PublicProfile } from '@/lib/api';
 import { useAuth, useToast } from '@/lib/stores';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -282,13 +283,13 @@ export default function PublicProfilePage() {
             )}
             {profile.websiteUrl && (
               <a
-                href={profile.websiteUrl}
+                href={externalHref(profile.websiteUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-sm text-primary hover:underline mt-1"
               >
                 <Link2 size={13} />
-                {profile.websiteUrl.replace(/^https?:\/\//, '')}
+                {displayUrl(profile.websiteUrl)}
               </a>
             )}
           </div>

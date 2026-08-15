@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useToast } from '@/hooks/useToast';
+import { useVideoSound } from '@/lib/stores';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faHeart,
@@ -37,7 +38,8 @@ export function PostCard({ post }: PostCardProps) {
   const [showComments, setShowComments] = useState(false);
   const [showBigHeart, setShowBigHeart] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [muted, setMuted] = useState(true);
+  const muted = useVideoSound((s) => s.muted);
+  const toggleMuted = useVideoSound((s) => s.toggleMuted);
   const [progress, setProgress] = useState(0);
   const [carouselIndex, setCarouselIndex] = useState(0);
 
@@ -112,7 +114,7 @@ export function PostCard({ post }: PostCardProps) {
 
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setMuted((m) => !m);
+    toggleMuted();
   };
 
   const handleTimeUpdate = () => {

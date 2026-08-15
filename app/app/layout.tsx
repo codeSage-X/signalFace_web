@@ -8,6 +8,7 @@ import { AuthGateModal } from '@/components/auth/AuthGateModal';
 import { BecomeCreatorModal } from '@/components/creator/BecomeCreatorModal';
 import { ProfileSwitchOverlay } from '@/components/creator/ProfileSwitchOverlay';
 import { Toaster } from '@/components/Toast';
+import { PostUploadBar } from '@/components/upload/PostUploadBar';
 import { useMyRealmSync } from '@/hooks/useCreatorProfile';
 import { useProfileMode } from '@/lib/stores';
 
@@ -49,6 +50,8 @@ export default function AppLayout({
       />
       {/* Sits above everything, including the modals it may follow. */}
       <ProfileSwitchOverlay />
+      {/* Reports a publish that is still running after the composer closed. */}
+      <PostUploadBar />
       <Toaster />
     </div>
   );

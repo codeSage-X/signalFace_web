@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, X } from 'lucide-react';
+import { Check, Loader2, X } from 'lucide-react';
 import { useAuth, useToast } from '@/lib/stores';
 import {
   loginSchema,
@@ -17,7 +17,8 @@ import {
   type ForgotPasswordInput,
   type NewPasswordInput,
 } from '@/lib/schemas';
-import { authApi, ApiError } from '@/lib/api';
+import { authApi, usersApi, ApiError, type RealmCategory } from '@/lib/api';
+import { InterestPicker } from '@/components/social/InterestPicker';
 import { signInWithGoogle, isUserCancelledAuth, isFirebaseConfigured } from '@/lib/firebase';
 import {
   EmailInput,
@@ -48,13 +49,20 @@ type View =
   | 'login'
   | 'signup'
   | 'verify-otp'
+  | 'interests'
   | 'forgot-password'
   | 'verify-reset-otp'
   | 'reset-password';
 
 export const AuthGateModal = () => {
-  const { authModalOpen, setAuthModalOpen, login, pendingVerificationEmail, setPendingVerificationEmail } =
-    useAuth();
+  const {
+    authModalOpen,
+    setAuthModalOpen,
+    login,
+    updateUser,
+    pendingVerificationEmail,
+    setPendingVerificationEmail,
+  } = useAuth();
   const { addToast } = useToast();
   const [view, setView] = useState<View>(pendingVerificationEmail ? 'verify-otp' : 'login');
   const [resetEmail, setResetEmail] = useState('');
@@ -89,6 +97,94 @@ export const AuthGateModal = () => {
       confirmPassword: '',
     },
   });
+
+  /**
+   * Live handle availability. Advisory only — registration is what actually
+   * decides, since someone else can claim the name between this check and
+   * submitting. It exists to catch the common case before the form is filled in.
+   */
+  const watchedUsername = signupForm.watch('username');
+  const [usernameStatus, setUsernameStatus] =
+    useState<'checking' | 'available' | 'taken' | null>(null);
+
+  useEffect(() => {
+    const username = watchedUsername?.trim() ?? '';
+
+    // Too short to be valid, so there is nothing meaningful to report yet.
+    if (username.length < 3) {
+      setUsernameStatus(null);
+      return;
+    }
+
+    let cancelled = false;
+    setUsernameStatus('checking');
+
+    // Debounced, or every keystroke would be a request.
+    const id = setTimeout(() => {
+      usersApi
+        .usernameAvailable(username)
+        .then((res) => {
+          if (cancelled) return;
+          setUsernameStatus(res.available ? 'available' : res.reason === 'taken' ? 'taken' : null);
+        })
+        // A failed check must not block sign-up; registration still validates.
+        .catch(() => {
+          if (!cancelled) setUsernameStatus(null);
+        });
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [watchedUsername]);
+
+  /**
+   * The invite code from a `?ref=` link.
+   *
+   * Captured on arrival and kept in sessionStorage, because the visitor almost
+   * never signs up on the same page view they landed on — reading the URL at
+   * submit time would lose the attribution as soon as they navigated.
+   */
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('ref');
+    if (fromUrl) {
+      sessionStorage.setItem('referralCode', fromUrl);
+      setReferralCode(fromUrl);
+      return;
+    }
+    setReferralCode(sessionStorage.getItem('referralCode'));
+  }, []);
+
+  // Topics chosen on the step after verification.
+  const [interests, setInterests] = useState<RealmCategory[]>([]);
+  const [savingInterests, setSavingInterests] = useState(false);
+
+  const saveInterests = async () => {
+    // Nothing picked is a valid answer, so don't spend a request on it.
+    if (interests.length === 0) {
+      setAuthModalOpen(false);
+      return;
+    }
+
+    setSavingInterests(true);
+    try {
+      await usersApi.updateInterests(interests);
+      updateUser({ interests });
+      setAuthModalOpen(false);
+      addToast({ message: 'Your feed is set up.', type: 'success', duration: 3000 });
+    } catch (err) {
+      addToast({
+        message: err instanceof Error ? err.message : 'Could not save your interests.',
+        type: 'error',
+        duration: 4000,
+      });
+    } finally {
+      setSavingInterests(false);
+    }
+  };
 
   const otpForm = useForm<OtpFormInput>({
     resolver: zodResolver(otpSchema),
@@ -126,7 +222,7 @@ export const AuthGateModal = () => {
   const handleLogin = async (data: LoginInput) => {
     try {
       const res = await authApi.login(data);
-      login(res.user, res.accessToken);
+      login(res.user, res.accessToken, res.refreshToken);
       setAuthModalOpen(false);
       addToast({
         message: `Welcome back, ${res.user.firstName}!`,
@@ -161,7 +257,7 @@ export const AuthGateModal = () => {
     try {
       const idToken = await signInWithGoogle();
       const res = await authApi.google({ idToken });
-      login(res.user, res.accessToken);
+      login(res.user, res.accessToken, res.refreshToken);
       setAuthModalOpen(false);
       addToast({
         message: res.isNewUser
@@ -194,7 +290,12 @@ export const AuthGateModal = () => {
   const handleRegister = async (data: SignupInput) => {
     try {
       const { confirmPassword: _, ...payload } = data;
-      const res = await authApi.register(payload);
+      // An unknown code is ignored server-side, so sending a stale one is safe.
+      const res = await authApi.register(
+        referralCode ? { ...payload, referralCode } : payload,
+      );
+      // Spent: keeping it would attribute the next signup on this device too.
+      sessionStorage.removeItem('referralCode');
       setPendingVerificationEmail(res.email);
       otpForm.reset();
       setView('verify-otp');
@@ -213,13 +314,16 @@ export const AuthGateModal = () => {
     if (!pendingVerificationEmail) return;
     try {
       const res = await authApi.verifyEmail({ email: pendingVerificationEmail, otp: data.otp });
-      login(res.user, res.accessToken);
-      setAuthModalOpen(false);
+      login(res.user, res.accessToken, res.refreshToken);
       addToast({
         message: `Welcome, ${res.user.firstName}! Your email is verified.`,
         type: 'success',
         duration: 5000,
       });
+      // Interests come after verification rather than during sign-up: saving them
+      // needs a session, and this is the first moment there is one. The modal
+      // stays open for this last step.
+      setView('interests');
     } catch (err) {
       otpForm.setError('otp', {
         message: err instanceof Error ? err.message : 'Invalid or expired code',
@@ -300,7 +404,7 @@ export const AuthGateModal = () => {
         otp: resetOtp,
         password: data.password,
       });
-      login(res.user, res.accessToken);
+      login(res.user, res.accessToken, res.refreshToken);
       setAuthModalOpen(false);
       addToast({ message: 'Password reset! You are now signed in.', type: 'success', duration: 5000 });
     } catch (err) {
@@ -328,9 +432,11 @@ export const AuthGateModal = () => {
   const title =
     view === 'signup'
       ? 'Create Account'
-      : view === 'verify-otp'
-        ? 'Verify Your Email'
-        : view === 'forgot-password'
+      : view === 'interests'
+        ? 'What are you into?'
+        : view === 'verify-otp'
+          ? 'Verify Your Email'
+          : view === 'forgot-password'
           ? 'Forgot Password'
           : view === 'verify-reset-otp'
             ? 'Verify Code'
@@ -341,9 +447,11 @@ export const AuthGateModal = () => {
   const subtitle =
     view === 'signup'
       ? 'Join the future of influence'
-      : view === 'verify-otp'
-        ? `Enter the 6-digit code we sent to ${pendingVerificationEmail ?? 'your email'}`
-        : view === 'forgot-password'
+      : view === 'interests'
+        ? 'Pick your topics and your feed will lean towards them. You can change these any time in Settings.'
+        : view === 'verify-otp'
+          ? `Enter the 6-digit code we sent to ${pendingVerificationEmail ?? 'your email'}`
+          : view === 'forgot-password'
           ? "Enter your account's email and we'll send you a reset code"
           : view === 'verify-reset-otp'
             ? `Enter the 6-digit code we sent to ${resetEmail}`
@@ -409,12 +517,49 @@ export const AuthGateModal = () => {
                 />
               </div>
 
-              <TextInput
-                value={signupForm.watch('username')}
-                onChange={(v) => signupForm.setValue('username', v)}
-                placeholder="Username (e.g. kingjay)"
-                error={signupForm.formState.errors.username?.message}
-              />
+              <div>
+                <TextInput
+                  value={signupForm.watch('username')}
+                  // Lowercased as they type, so the field always shows the handle
+                  // that will actually be stored — no surprise transformation
+                  // between what was typed and what the account ends up with.
+                  onChange={(v) =>
+                    signupForm.setValue('username', v.trim().toLowerCase(), {
+                      shouldValidate: signupForm.formState.isSubmitted,
+                    })
+                  }
+                  placeholder="Username (e.g. kingjay)"
+                  error={signupForm.formState.errors.username?.message}
+                />
+
+                {/* Availability, once the field is long enough to be valid and
+                    the form isn't already complaining about its format. */}
+                {!signupForm.formState.errors.username && usernameStatus && (
+                  <p
+                    className={`mt-1 text-xs flex items-center gap-1 ${
+                      usernameStatus === 'checking'
+                        ? 'text-muted-foreground'
+                        : usernameStatus === 'available'
+                          ? 'text-emerald-400'
+                          : 'text-red-400'
+                    }`}
+                  >
+                    {usernameStatus === 'checking' && (
+                      <>
+                        <Loader2 size={11} className="animate-spin" />
+                        Checking availability…
+                      </>
+                    )}
+                    {usernameStatus === 'available' && (
+                      <>
+                        <Check size={11} strokeWidth={3} />@{signupForm.watch('username')} is
+                        available
+                      </>
+                    )}
+                    {usernameStatus === 'taken' && <>That username is already taken</>}
+                  </p>
+                )}
+              </div>
 
               {/* DOB + Gender row */}
               <div className="grid grid-cols-2 gap-3">
@@ -493,6 +638,38 @@ export const AuthGateModal = () => {
 
               <SubmitButton isLoading={isLoading} label="Sign In" />
             </form>
+          )}
+
+          {view === 'interests' && (
+            <div className="space-y-5 mt-2">
+              <InterestPicker
+                value={interests}
+                onChange={setInterests}
+                disabled={savingInterests}
+              />
+
+              <button
+                type="button"
+                onClick={saveInterests}
+                disabled={savingInterests}
+                className="w-full py-3 rounded-xl font-semibold text-white brand-gradient
+                  hover:brightness-110 transition disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {savingInterests && <Loader2 size={15} className="animate-spin" />}
+                {interests.length ? 'Save and continue' : 'Continue'}
+              </button>
+
+              {/* Skippable: an empty selection is valid and simply means the feed
+                  stays reverse-chronological until they pick something. */}
+              <button
+                type="button"
+                onClick={() => setAuthModalOpen(false)}
+                disabled={savingInterests}
+                className="w-full text-center text-muted-foreground text-xs hover:underline"
+              >
+                Skip for now
+              </button>
+            </div>
           )}
 
           {view === 'verify-otp' && (

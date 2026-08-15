@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
+import { externalHref, displayUrl } from '@/lib/utils';
 import {
   REALM_CATEGORY_LABELS,
   realmsApi,
@@ -334,13 +335,13 @@ export default function PublicRealmPage() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Website</p>
                   <a
-                    href={realm.websiteUrl}
+                    href={externalHref(realm.websiteUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-sm text-primary hover:underline"
                   >
                     <Link2 size={13} />
-                    {realm.websiteUrl.replace(/^https?:\/\//, '')}
+                    {displayUrl(realm.websiteUrl)}
                     <ExternalLink size={11} />
                   </a>
                 </div>

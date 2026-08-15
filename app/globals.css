@@ -183,6 +183,25 @@
   to   { transform: rotate(360deg); }
 }
 
+/*
+ * The composer's edit panel entering. It comes from the side on desktop, where
+ * it sits beside the media, and from below on mobile, where it stacks under it.
+ *
+ * Defined here rather than in a styled-jsx block: styled-jsx rewrites every
+ * `className` in the component it lives in, and it emits a broken string when
+ * one of them spans multiple lines.
+ */
+@keyframes composer-slide {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes composer-slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+
 /* ---------------------------------------------------------------------------
    Brand surfaces
    --------------------------------------------------------------------------- */

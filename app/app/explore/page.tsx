@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Heart, MessageCircle, Loader2, Compass, Play } from 'lucide-react';
+import { ArrowRight, Heart, MessageCircle, Compass, Play } from 'lucide-react';
 import {
   postsApi,
   realmsApi,
@@ -102,6 +102,55 @@ const PostThumb = ({ post }: { post: FeedPost }) => {
   );
 };
 
+/**
+ * Placeholders shaped like the cards they stand in for, so the page keeps its
+ * layout while loading instead of collapsing to a centred spinner and then
+ * jumping when the real content arrives.
+ */
+const Shimmer = ({ className = '' }: { className?: string }) => (
+  <div className={`bg-white/[0.06] animate-pulse rounded ${className}`} />
+);
+
+const PostThumbSkeleton = () => (
+  <div className="glass-card rounded-2xl overflow-hidden flex flex-col">
+    <div className="aspect-[4/5] bg-white/[0.06] animate-pulse" />
+    <div className="p-3 space-y-2">
+      <Shimmer className="h-3.5 w-24" />
+      <Shimmer className="h-3 w-full" />
+      <div className="flex gap-3 pt-0.5">
+        <Shimmer className="h-3 w-10" />
+        <Shimmer className="h-3 w-10" />
+      </div>
+    </div>
+  </div>
+);
+
+const CreatorCardSkeleton = () => (
+  <div className="glass-card rounded-2xl p-4">
+    <div className="flex items-center gap-3">
+      <Shimmer className="w-11 h-11 rounded-full flex-shrink-0" />
+      <div className="flex-1 space-y-2">
+        <Shimmer className="h-3.5 w-28" />
+        <Shimmer className="h-3 w-20" />
+      </div>
+    </div>
+    <div className="mt-4 flex items-center justify-between">
+      <Shimmer className="h-3 w-16" />
+      <Shimmer className="h-3 w-12" />
+    </div>
+  </div>
+);
+
+const RealmCardSkeleton = () => (
+  <div className="glass-card rounded-2xl overflow-hidden flex flex-col">
+    <div className="h-24 bg-white/[0.06] animate-pulse" />
+    <div className="p-4 space-y-2">
+      <Shimmer className="h-3.5 w-32" />
+      <Shimmer className="h-3 w-20" />
+    </div>
+  </div>
+);
+
 export default function ExplorePage() {
   const [category, setCategory] = useState<RealmCategory | null>(null);
 
@@ -113,20 +162,37 @@ export default function ExplorePage() {
   const [creatorsLoading, setCreatorsLoading] = useState(true);
   const [realmsLoading, setRealmsLoading] = useState(true);
 
-  // Posts and creators aren't categorised, so they load once. Each strip catches
-  // its own failure — one dead section shouldn't blank the page.
+  // Posts follow the chip now that they carry a topic of their own: picking a
+  // category narrows the posts as well as the realms, instead of hiding the
+  // strip entirely. With no chip it falls back to the ranked feed.
   useEffect(() => {
     let cancelled = false;
+    setPostsLoading(true);
 
-    postsApi
-      .feed(null, TRENDING_POSTS)
+    const request = category
+      ? postsApi.search('', { category, limit: TRENDING_POSTS })
+      : postsApi.feed(null, TRENDING_POSTS);
+
+    request
       .then((page) => {
         if (!cancelled) setPosts(page.items);
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setPosts([]);
+      })
       .finally(() => {
         if (!cancelled) setPostsLoading(false);
       });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [category]);
+
+  // Creators aren't categorised, so they load once. Each strip catches its own
+  // failure — one dead section shouldn't blank the page.
+  useEffect(() => {
+    let cancelled = false;
 
     signalsApi
       .list()
@@ -203,37 +269,49 @@ export default function ExplorePage() {
         </div>
       </div>
 
-      {/* Only realms carry a category, so a chip narrows the page to that strip. */}
+      {/* Posts respond to the chip, so this strip stays visible while filtering. */}
+      <section className="mt-8">
+        <SectionHeading
+          title={filtering ? `${REALM_CATEGORY_LABELS[category]} Posts` : 'Trending Now'}
+          href="/app/for-you"
+        />
+        {postsLoading ? (
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <PostThumbSkeleton key={i} />
+            ))}
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="glass-card rounded-2xl p-8 text-center">
+            <Compass size={26} className="mx-auto text-muted-foreground" />
+            <p className="mt-3 font-semibold text-card-foreground">
+              {filtering ? 'No posts in this category yet' : 'Nothing trending yet'}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {filtering
+                ? 'Try another category, or clear the filter.'
+                : 'Posts show up here as soon as people start publishing.'}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {posts.map((post) => (
+              <PostThumb key={post.id} post={post} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Creators carry no category, so they drop out while a chip is active. */}
       {!filtering && (
         <>
-          <section className="mt-8">
-            <SectionHeading title="Trending Now" href="/app/for-you" />
-            {postsLoading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 size={20} className="animate-spin text-muted-foreground" />
-              </div>
-            ) : posts.length === 0 ? (
-              <div className="glass-card rounded-2xl p-8 text-center">
-                <Compass size={26} className="mx-auto text-muted-foreground" />
-                <p className="mt-3 font-semibold text-card-foreground">Nothing trending yet</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Posts show up here as soon as people start publishing.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
-                {posts.map((post) => (
-                  <PostThumb key={post.id} post={post} />
-                ))}
-              </div>
-            )}
-          </section>
-
           <section className="mt-10">
             <SectionHeading title="Top Creators" href="/app/creators" />
             {creatorsLoading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 size={20} className="animate-spin text-muted-foreground" />
+              <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <CreatorCardSkeleton key={i} />
+                ))}
               </div>
             ) : creators.length === 0 ? (
               <div className="glass-card rounded-2xl p-8 text-center">
@@ -304,8 +382,10 @@ export default function ExplorePage() {
           href="/app/realms"
         />
         {realmsLoading ? (
-          <div className="flex justify-center py-10">
-            <Loader2 size={20} className="animate-spin text-muted-foreground" />
+          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <RealmCardSkeleton key={i} />
+            ))}
           </div>
         ) : realms.length === 0 ? (
           <div className="glass-card rounded-2xl p-8 text-center">

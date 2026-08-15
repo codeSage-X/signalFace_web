@@ -4,21 +4,24 @@ export const signupSchema = z
   .object({
     firstName: z.string().min(1, 'First name is required'),
     lastName: z.string().min(1, 'Last name is required'),
+    // Lowercased before validation, so typing "SageX" submits "sagex" and the
+    // handle a user sees is the handle that gets stored.
     username: z
       .string()
+      .trim()
+      .toLowerCase()
       .min(3, 'Username must be at least 3 characters')
       .max(20, 'Username must be at most 20 characters')
-      .regex(/^[a-zA-Z0-9_]+$/, 'Letters, numbers and underscores only'),
+      .regex(/^[a-z0-9_]+$/, 'Letters, numbers and underscores only'),
     dateOfBirth: z.string().min(1, 'Date of birth is required'),
     gender: z.enum(['male', 'female', 'non-binary', 'prefer-not-to-say'], {
       error: 'Please select a gender',
     }),
     email: z.string().email('Invalid email address'),
-    password: z
-      .string()
-      .min(8, 'Password must be at least 8 characters')
-      .regex(/[A-Z]/, 'Must contain an uppercase letter')
-      .regex(/[0-9]/, 'Must contain a number'),
+    // Length only. Composition rules (an uppercase, a digit) push people towards
+    // predictable substitutions without buying much, and they were costing
+    // sign-ups here.
+    password: z.string().min(6, 'Password must be at least 6 characters'),
     confirmPassword: z.string(),
   })
   .refine((d) => d.password === d.confirmPassword, {
@@ -44,11 +47,10 @@ export const otpSchema = z.object({
 
 export const newPasswordSchema = z
   .object({
-    password: z
-      .string()
-      .min(8, 'Password must be at least 8 characters')
-      .regex(/[A-Z]/, 'Must contain an uppercase letter')
-      .regex(/[0-9]/, 'Must contain a number'),
+    // Length only. Composition rules (an uppercase, a digit) push people towards
+    // predictable substitutions without buying much, and they were costing
+    // sign-ups here.
+    password: z.string().min(6, 'Password must be at least 6 characters'),
     confirmPassword: z.string(),
   })
   .refine((d) => d.password === d.confirmPassword, {

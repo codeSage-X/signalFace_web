@@ -1,12 +1,13 @@
 'use client';
 
 import { useAuth, useToast } from '@/lib/stores';
-import { useState } from 'react';
-import { Bell, Lock, User, LogOut, Pencil, Check, X, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bell, Lock, User, LogOut, Pencil, Check, X, Loader2, Sparkles } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPalette, faCog, faSignOut } from '@fortawesome/free-solid-svg-icons';
-import { usersApi, ApiError } from '@/lib/api';
+import { usersApi, ApiError, type RealmCategory } from '@/lib/api';
+import { InterestPicker } from '@/components/social/InterestPicker';
 
 export default function SettingsPage() {
   const { user, logout, updateUser } = useAuth();
@@ -17,6 +18,39 @@ export default function SettingsPage() {
   const [emailInput, setEmailInput] = useState(user?.email ?? '');
   const [usernameInput, setUsernameInput] = useState(user?.username ?? '');
   const [displayNameInput, setDisplayNameInput] = useState(user?.displayName ?? '');
+
+  // What the server has, and what the picker is showing. Save appears only when
+  // they differ, so nothing is written on an idle visit.
+  const savedInterests = (user?.interests ?? []) as RealmCategory[];
+  const [interests, setInterests] = useState<RealmCategory[]>(savedInterests);
+  const [savingInterests, setSavingInterests] = useState(false);
+
+  // The profile arrives after first paint, so adopt the stored selection once it
+  // does — but only while the user hasn't started editing.
+  useEffect(() => {
+    setInterests(savedInterests);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedInterests.join(',')]);
+
+  const interestsDirty =
+    [...interests].sort().join(',') !== [...savedInterests].sort().join(',');
+
+  const saveInterests = async () => {
+    setSavingInterests(true);
+    try {
+      const res = await usersApi.updateInterests(interests);
+      updateUser({ interests: res.interests });
+      addToast({ message: 'Interests updated.', type: 'success', duration: 3000 });
+    } catch (err) {
+      addToast({
+        message: err instanceof ApiError ? err.message : 'Could not save your interests.',
+        type: 'error',
+        duration: 4000,
+      });
+    } finally {
+      setSavingInterests(false);
+    }
+  };
 
   const startEditingAccount = () => {
     setEmailInput(user?.email ?? '');
@@ -145,6 +179,42 @@ export default function SettingsPage() {
               <label className="text-sm text-muted-foreground">Points Balance</label>
               <p className="text-foreground mt-1">{user?.pointsBalance ?? '0'} pts</p>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Interests — what the feed leans towards */}
+      <div className="glass-card rounded-2xl p-6">
+        <h2 className="text-lg font-bold text-foreground mb-2 flex items-center gap-2">
+          <Sparkles size={20} />
+          Your interests
+        </h2>
+        <p className="text-sm text-muted-foreground mb-5">
+          Roughly two in three posts in your feed will come from these topics. The rest keeps
+          things varied.
+        </p>
+
+        <InterestPicker value={interests} onChange={setInterests} disabled={savingInterests} />
+
+        {interestsDirty && (
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              onClick={saveInterests}
+              disabled={savingInterests}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white brand-gradient
+                hover:brightness-110 transition disabled:opacity-60 flex items-center gap-2"
+            >
+              {savingInterests && <Loader2 size={14} className="animate-spin" />}
+              Save interests
+            </button>
+            <button
+              onClick={() => setInterests(savedInterests)}
+              disabled={savingInterests}
+              className="px-4 py-2 rounded-lg text-sm font-medium glass-chip text-foreground
+                hover:brightness-125 transition disabled:opacity-60"
+            >
+              Cancel
+            </button>
           </div>
         )}
       </div>
