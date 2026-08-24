@@ -14,6 +14,7 @@ import {
   type SignalListItem,
 } from '@/lib/api';
 import { UserAvatar } from '@/components/UserAvatar';
+import { PostDetailModal } from '@/components/social/PostDetailModal';
 
 const TRENDING_POSTS = 8;
 const TOP_CREATORS = 6;
@@ -40,13 +41,16 @@ const SectionHeading = ({ title, href }: { title: string; href: string }) => (
   </Link>
 );
 
-const PostThumb = ({ post }: { post: FeedPost }) => {
+const PostThumb = ({ post, onOpen }: { post: FeedPost; onOpen: () => void }) => {
   const src = post.mediaUrls[0];
 
   return (
-    <Link
-      href="/app/for-you"
-      className="glass-card glass-hover rounded-2xl overflow-hidden flex flex-col group"
+    // A button, not a link: opening a post keeps the viewer on Explore rather
+    // than sending them to the public feed, which used to lose their place.
+    <button
+      type="button"
+      onClick={onOpen}
+      className="glass-card glass-hover rounded-2xl overflow-hidden flex flex-col group text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <div className="relative aspect-[4/5] bg-black/40 overflow-hidden">
         {post.kind === 'image' && src ? (
@@ -98,7 +102,7 @@ const PostThumb = ({ post }: { post: FeedPost }) => {
           </span>
         </div>
       </div>
-    </Link>
+    </button>
   );
 };
 
@@ -153,6 +157,10 @@ const RealmCardSkeleton = () => (
 
 export default function ExplorePage() {
   const [category, setCategory] = useState<RealmCategory | null>(null);
+  // Which post in the grid is open, by position. Explore stays mounted
+  // underneath, so closing returns the viewer to exactly the scroll position and
+  // filter they left — and the modal can walk this list.
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const [creators, setCreators] = useState<SignalListItem[]>([]);
@@ -168,6 +176,10 @@ export default function ExplorePage() {
   useEffect(() => {
     let cancelled = false;
     setPostsLoading(true);
+
+    // The open post belongs to the old list; a new filter invalidates its
+    // position, so close rather than silently showing a different post.
+    setOpenIndex(null);
 
     const request = category
       ? postsApi.search('', { category, limit: TRENDING_POSTS })
@@ -295,8 +307,12 @@ export default function ExplorePage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {posts.map((post) => (
-              <PostThumb key={post.id} post={post} />
+            {posts.map((post, i) => (
+              <PostThumb
+                key={post.id}
+                post={post}
+                onOpen={() => setOpenIndex(i)}
+              />
             ))}
           </div>
         )}
@@ -446,6 +462,21 @@ export default function ExplorePage() {
           </div>
         )}
       </section>
+
+      {/* Opened over the grid rather than routed to, so the filter and scroll
+          position behind are preserved when it closes. */}
+      {openIndex !== null && posts[openIndex] && (
+        <PostDetailModal
+          posts={posts}
+          index={openIndex}
+          onIndexChange={setOpenIndex}
+          onClose={() => setOpenIndex(null)}
+          onChanged={(updated) =>
+            // Keep the card behind in step with likes, saves and reposts.
+            setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+          }
+        />
+      )}
     </div>
   );
 }

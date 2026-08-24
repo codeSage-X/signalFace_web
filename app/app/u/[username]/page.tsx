@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Link2, Play, Eye, FileText, Image as ImageIcon,
-  Loader2, ArrowLeft, UserPlus, UserCheck, LayoutGrid,
+  Loader2, ArrowLeft, UserPlus, UserCheck, LayoutGrid, MessageCircle,
 } from 'lucide-react';
 import { externalHref, displayUrl } from '@/lib/utils';
 import { postsApi, usersApi, type FeedPost, type PublicProfile } from '@/lib/api';
@@ -276,6 +276,22 @@ export default function PublicProfilePage() {
                 )}
                 {profile.isFollowedByMe ? 'Following' : 'Follow'}
               </button>
+
+              {/* Entry point into a DM. The thread id is derived from the two
+                  user ids, so this always resolves to the same conversation. */}
+              {!profile.isMe && (
+                <button
+                  onClick={() =>
+                    requireAuth(() =>
+                      router.push(`/app/messages?with=${encodeURIComponent(profile.username)}`),
+                    )
+                  }
+                  className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold glass-chip text-foreground hover:brightness-125 transition"
+                >
+                  <MessageCircle size={14} />
+                  Message
+                </button>
+              )}
             </div>
 
             {profile.bio && (

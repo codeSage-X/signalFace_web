@@ -17,6 +17,7 @@ import {
   type ReferralSummary,
   type RewardItem,
 } from '@/lib/api';
+import { inviteLink as buildInviteLink } from '@/lib/utils';
 import { useAuth, useToast } from '@/lib/stores';
 
 const fmtPoints = (value: string | number) =>
@@ -94,9 +95,7 @@ export default function RewardsPage() {
     }
   };
 
-  const inviteLink = referrals
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/?ref=${referrals.referralCode}`
-    : '';
+  const inviteLink = referrals ? buildInviteLink(referrals.referralCode) : '';
 
   const copyInvite = async () => {
     try {

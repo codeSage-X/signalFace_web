@@ -7,6 +7,7 @@ import { Search } from 'lucide-react';
 import { BrandMark } from '@/components/BrandMark';
 import { useAuth, useToast } from '@/lib/stores';
 import { walletApi } from '@/lib/api';
+import { inviteLink } from '@/lib/utils';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChartLine,
@@ -19,6 +20,7 @@ import {
   faHistory,
   faCompass,
   faUserGroup,
+  faComments,
   faGear,
   faSignOut,
 } from '@fortawesome/free-solid-svg-icons';
@@ -31,6 +33,7 @@ export const navItems = [
   { href: '/app/explore', label: 'Explore', icon: faCompass },
   { href: '/app/creators', label: 'Creators', icon: faUsers },
   { href: '/app/friends', label: 'Friends', icon: faUserGroup },
+  { href: '/app/messages', label: 'Messages', icon: faComments },
   { href: '/app/market', label: 'Market', icon: faChartLine },
   { href: '/app/realms', label: 'Realms', icon: faBoltLightning },
   { href: '/app/signals', label: 'Signals', icon: faBriefcase },
@@ -68,7 +71,18 @@ export const Sidebar = () => {
   }, [isAuthenticated]);
 
   const handleInvite = async () => {
-    const link = `${window.location.origin}/?ref=${user?.username ?? ''}`;
+    // The code, not the username: registration looks up `referralCode`, so a
+    // username here matched no one and the referral silently paid nothing.
+    if (!user?.referralCode) {
+      addToast({
+        message: 'Your invite code is still loading. Try again in a moment.',
+        type: 'info',
+        duration: 3000,
+      });
+      return;
+    }
+
+    const link = inviteLink(user.referralCode);
     try {
       await navigator.clipboard.writeText(link);
       addToast({

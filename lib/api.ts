@@ -254,6 +254,8 @@ export interface UserProfile {
   websiteUrl: string | null;
   role: string;
   creatorStatus: string;
+  /** This user's own invite code. */
+  referralCode: string;
   /** Topics this person wants more of. Drives feed ranking. */
   interests: RealmCategory[];
   accountStatus: 'ACTIVE' | 'RESTRICTED' | 'BLOCKED';
@@ -278,7 +280,12 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  google: (body: { idToken: string }) =>
+  /**
+   * `referralCode` is optional and only meaningful for a brand-new account:
+   * Google sign-in skips the registration form, so without carrying it here a
+   * referral through Google would be lost.
+   */
+  google: (body: { idToken: string; referralCode?: string }) =>
     request<GoogleAuthResponse>('/auth/google', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -308,6 +315,13 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  /**
+   * A Firebase credential for reaching Firestore, which is where chat lives.
+   * Its uid is this app's user id, so Firestore rules can scope a conversation
+   * to its participants.
+   */
+  firebaseToken: () =>
+    request<{ token: string }>('/auth/firebase-token', { method: 'POST' }),
   /** Renewal is handled automatically by `send` — this is for explicit calls. */
   refresh: (body: { refreshToken: string }) =>
     request<AuthResponse>('/auth/refresh', {
@@ -473,6 +487,9 @@ export const usersApi = {
     request<{ items: FollowPerson[] }>(
       `/users/suggestions${limit ? `?limit=${limit}` : ''}`,
     ),
+  /** Several people by id, for resolving chat participants in one request. */
+  byIds: (ids: string[]) =>
+    request<{ items: FollowPerson[] }>(`/users/by-ids?ids=${encodeURIComponent(ids.join(','))}`),
   /** Accounts matching a query, by handle or display name. */
   search: (q: string, cursor?: string | null, limit?: number) =>
     request<Page<FollowPerson>>(

@@ -78,6 +78,8 @@ export interface User {
   websiteUrl?: string | null;
   role: string;
   creatorStatus: string;
+  /** This user's own invite code, used to build their referral link. */
+  referralCode?: string;
   /** Topics driving this person's feed ranking. */
   interests?: string[];
   accountStatus?: 'ACTIVE' | 'RESTRICTED' | 'BLOCKED';
@@ -144,6 +146,13 @@ export const useAuth = create<AuthState>()(
             // Signing out locally must succeed even if the API is unreachable.
           });
         }
+
+        // Drop the Firestore chat session as well, or the next account to sign in
+        // on this browser inherits a live credential for someone else's messages.
+        // Imported lazily to keep chat's Firebase bundle out of the store.
+        void import('./chatClient')
+          .then((m) => m.resetChatAuth())
+          .catch(() => {});
 
         // The next account to sign in must not inherit this one's creator page.
         useProfileMode.getState().reset();

@@ -6,6 +6,23 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * The app's public address, for links meant to be sent to other people.
+ *
+ * Not `window.location.origin`: on a developer machine that produces
+ * http://localhost:3000, so an invite or share link copied during development
+ * pointed somewhere only that machine can reach. Override per environment with
+ * NEXT_PUBLIC_SITE_URL.
+ */
+export function siteUrl(): string {
+  return (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.signalface.com').replace(/\/$/, '');
+}
+
+/** A shareable invite link for a referral code. */
+export function inviteLink(referralCode: string): string {
+  return `${siteUrl()}/?ref=${encodeURIComponent(referralCode)}`;
+}
+
+/**
  * A user-entered website turned into an absolute href.
  *
  * People type "www.example.com", and a browser reads a schemeless href as a path

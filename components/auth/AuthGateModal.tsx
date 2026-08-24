@@ -256,8 +256,13 @@ export const AuthGateModal = () => {
     setGoogleLoading(true);
     try {
       const idToken = await signInWithGoogle();
-      const res = await authApi.google({ idToken });
+      // Same code the email form would send. Ignored by the API unless this
+      // turns out to be a new account.
+      const res = await authApi.google(
+        referralCode ? { idToken, referralCode } : { idToken },
+      );
       login(res.user, res.accessToken, res.refreshToken);
+      if (res.isNewUser) sessionStorage.removeItem('referralCode');
       setAuthModalOpen(false);
       addToast({
         message: res.isNewUser
@@ -482,6 +487,29 @@ export const AuthGateModal = () => {
 
         {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 px-6 pb-6">
+          {/*
+            Referral, above both sign-up methods because it applies to either.
+            Normally filled automatically from a ?ref= link and simply confirms
+            the credit landed; typing it by hand is for a code given verbally.
+            Sign-up only — a returning user isn't being referred.
+          */}
+          {view === 'signup' && (
+            <div className="mt-2 mb-4">
+              <input
+                value={referralCode ?? ''}
+                onChange={(e) => setReferralCode(e.target.value.trim() || null)}
+                placeholder="Referral code (optional)"
+                className="w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              {referralCode && (
+                <p className="mt-1.5 text-xs text-emerald-400 flex items-center gap-1">
+                  <Check size={11} strokeWidth={3} />
+                  Invite applied — works with Google or email sign-up
+                </p>
+              )}
+            </div>
+          )}
+
           {(view === 'login' || view === 'signup') && isFirebaseConfigured && (
             <div className="mt-2">
               <GoogleButton
