@@ -9,10 +9,9 @@ node_modules/
 !.yarn/versions
 
 # ---- Environment / secrets ----
+# Every env file, examples included — nothing named .env* is committed.
 .env
 .env.*
-!.env.example
-!.env.*.example
 *.pem
 *.key
 serviceAccountKey.json
