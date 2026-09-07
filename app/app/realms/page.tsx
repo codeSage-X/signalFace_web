@@ -6,6 +6,7 @@ import { BadgeCheck, Loader2, Plus, Search, Sparkles, Users } from 'lucide-react
 import {
   REALM_CATEGORIES,
   REALM_CATEGORY_LABELS,
+  realmCategoryLabel,
   realmsApi,
   type Realm,
   type RealmCategory,
@@ -303,7 +304,7 @@ const RealmCard = ({
 
       <div className="mt-2 flex items-center gap-2">
         <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sidebar-accent text-foreground">
-          {REALM_CATEGORY_LABELS[realm.category]}
+          {realmCategoryLabel(realm)}
         </span>
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <Users size={12} />

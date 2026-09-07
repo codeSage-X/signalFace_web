@@ -62,26 +62,36 @@ export const newPasswordSchema = z
  * Creator sign-up. Mirrors CreateRealmDto on the API — keep the two in step, as
  * this only front-runs the server's own validation.
  */
-export const createRealmSchema = z.object({
-  name: z
-    .string()
-    .min(2, 'Your realm name needs at least 2 characters')
-    .max(50, 'Realm names are limited to 50 characters'),
-  category: z.string().min(1, 'Pick a category for your realm'),
-  slug: z
-    .string()
-    .min(3, 'Handles need at least 3 characters')
-    .max(30, 'Handles are limited to 30 characters')
-    .regex(/^[a-z0-9_]+$/, 'Lowercase letters, numbers and underscores only')
-    // Optional: blank means "derive it from the name".
-    .or(z.literal('')),
-  tagline: z.string().max(120, 'Taglines are limited to 120 characters').or(z.literal('')),
-  description: z
-    .string()
-    .max(1000, 'Descriptions are limited to 1000 characters')
-    .or(z.literal('')),
-  websiteUrl: z.string().url('Enter a valid URL').or(z.literal('')),
-});
+export const createRealmSchema = z
+  .object({
+    name: z
+      .string()
+      .min(2, 'Your realm name needs at least 2 characters')
+      .max(50, 'Realm names are limited to 50 characters'),
+    category: z.string().min(1, 'Pick a category for your realm'),
+    /** Required when `category` is 'OTHER' — the creator's own label. */
+    customCategory: z
+      .string()
+      .max(30, 'Category names are limited to 30 characters')
+      .or(z.literal('')),
+    slug: z
+      .string()
+      .min(3, 'Handles need at least 3 characters')
+      .max(30, 'Handles are limited to 30 characters')
+      .regex(/^[a-z0-9_]+$/, 'Lowercase letters, numbers and underscores only')
+      // Optional: blank means "derive it from the name".
+      .or(z.literal('')),
+    tagline: z.string().max(120, 'Taglines are limited to 120 characters').or(z.literal('')),
+    description: z
+      .string()
+      .max(1000, 'Descriptions are limited to 1000 characters')
+      .or(z.literal('')),
+    websiteUrl: z.string().url('Enter a valid URL').or(z.literal('')),
+  })
+  .refine((d) => d.category !== 'OTHER' || d.customCategory.trim().length >= 2, {
+    message: 'Tell us what category your realm is',
+    path: ['customCategory'],
+  });
 
 export type CreateRealmInput = z.infer<typeof createRealmSchema>;
 

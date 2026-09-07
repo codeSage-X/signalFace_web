@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import NextLink from 'next/link';
-import { Shuffle, Wallet, TrendingUp, Gift } from 'lucide-react';
+import { Briefcase, Clock3, ReceiptText, Wallet } from 'lucide-react';
 import { useAuth } from '@/lib/stores';
 import {
   signalsApi,
   walletApi,
+  activityApi,
+  type ActivityItem,
   type SignalListItem,
   type WalletOverview,
 } from '@/lib/api';
@@ -24,53 +26,44 @@ import { TopGainersCard, type GainerRow } from '@/components/dashboard/TopGainer
 /** How many samples each range renders. */
 const RANGE_POINTS: Record<Range, number> = { '24H': 24, '7D': 28, '30D': 30, ALL: 40 };
 
-/**
- * Placeholder feed. There is no activity endpoint yet — `/app/activity` is
- * mock-backed too. Swap for the real call once the API exposes one.
- */
-const PLACEHOLDER_ACTIVITY: ActivityEntry[] = [
-  {
-    id: 'a1',
-    kind: 'buy',
-    text: 'You bought 2.50 shares of Zayvo Signal',
-    time: '2 minutes ago',
-    amount: '− $25.00',
-    tone: 'down',
-  },
-  {
-    id: 'a2',
-    kind: 'reward',
-    text: 'You earned 15.50 SF from daily reward',
-    time: '1 hour ago',
-    amount: '+ 15.50 SF',
-    tone: 'up',
-  },
-  {
-    id: 'a3',
-    kind: 'price',
-    text: 'LunaVibes Signal price increased by 4.2%',
-    time: '2 hours ago',
-    amount: '+ 4.2%',
-    tone: 'up',
-  },
-  {
-    id: 'a4',
-    kind: 'referral',
-    text: 'You referred John and earned 5.00 SF',
-    time: '5 hours ago',
-    amount: '+ 5.00 SF',
-    tone: 'up',
-  },
-];
+const naira = (n: number) =>
+  `₦${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const money = (n: number) =>
-  `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function timeAgo(value: string) {
+  const diff = Date.now() - new Date(value).getTime();
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diff < minute) return 'Just now';
+  if (diff < hour) return `${Math.floor(diff / minute)}m ago`;
+  if (diff < day) return `${Math.floor(diff / hour)}h ago`;
+  if (diff < 7 * day) return `${Math.floor(diff / day)}d ago`;
+  return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function dashboardActivity(item: ActivityItem): ActivityEntry {
+  return {
+    id: item.id,
+    kind:
+      item.kind === 'transaction'
+        ? 'buy'
+        : item.kind === 'follow'
+          ? 'referral'
+          : item.kind,
+    text: item.body ? `${item.title}: ${item.body}` : item.title,
+    time: timeAgo(item.createdAt),
+    amount: item.amount ?? '',
+    tone: item.tone === 'down' ? 'down' : 'up',
+  };
+}
 
 export default function DashboardPage() {
   const { isAuthenticated, user } = useAuth();
 
   const [signals, setSignals] = useState<SignalListItem[]>([]);
   const [wallet, setWallet] = useState<WalletOverview | null>(null);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<Range>('7D');
 
@@ -78,9 +71,10 @@ export default function DashboardPage() {
     let cancelled = false;
 
     const load = async () => {
-      const [signalsResult, walletResult] = await Promise.allSettled([
+      const [signalsResult, walletResult, activityResult] = await Promise.allSettled([
         signalsApi.list(),
         isAuthenticated ? walletApi.getMe() : Promise.resolve(null),
+        isAuthenticated ? activityApi.list(null, 5) : Promise.resolve({ items: [] }),
       ]);
 
       if (cancelled) return;
@@ -89,6 +83,9 @@ export default function DashboardPage() {
       setWallet(
         walletResult.status === 'fulfilled' ? (walletResult.value as WalletOverview | null) : null,
       );
+      if (activityResult.status === 'fulfilled') {
+        setActivity(activityResult.value.items.map(dashboardActivity));
+      }
       setLoading(false);
     };
 
@@ -102,19 +99,19 @@ export default function DashboardPage() {
 
   const totals = useMemo(() => {
     const totalValue = Number(wallet?.totalValue ?? 0);
-    const invested = holdings.reduce(
+    const ownershipCost = holdings.reduce(
       (sum, h) => sum + Number(h.quantity) * Number(h.avgBuyPrice),
       0,
     );
     const shares = holdings.reduce((sum, h) => sum + Number(h.quantity), 0);
-    const pnl = totalValue - invested;
+    const pnl = totalValue - ownershipCost;
 
     return {
       totalValue,
-      invested,
+      ownershipCost,
       shares,
       pnl,
-      pnlPct: invested > 0 ? (pnl / invested) * 100 : 0,
+      pnlPct: ownershipCost > 0 ? (pnl / ownershipCost) * 100 : 0,
       rewards: Number(wallet?.pointsBalance ?? 0),
       changePct: wallet?.change24h ?? 0,
     };
@@ -200,35 +197,30 @@ export default function DashboardPage() {
         {/* KPI row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           <StatTile
-            label="Signals Owned"
+            label="Total Portfolio Value"
+            value={naira(totals.totalValue)}
+            sub={holdings.length > 0 ? `${holdings.length} signals owned` : 'No holdings yet'}
+            icon={Briefcase}
+          />
+          <StatTile
+            label="24-hour Change"
+            value={`${totals.changePct >= 0 ? '+' : '−'}${Math.abs(totals.changePct).toFixed(2)}%`}
+            tone={totals.changePct >= 0 ? 'up' : 'down'}
+            sub="Weighted across holdings"
+            icon={Clock3}
+          />
+          <StatTile
+            label="Holdings"
             value={String(holdings.length)}
-            sub={totals.shares > 0 ? `${totals.shares.toFixed(2)} shares held` : undefined}
-            icon={Shuffle}
+            sub={totals.shares > 0 ? `${totals.shares.toFixed(2)} shares held` : 'signals owned'}
+            icon={ReceiptText}
           />
           <StatTile
-            label="Total Invested"
-            value={money(totals.invested)}
-            sub={
-              totals.shares > 0
-                ? `avg ${money(totals.invested / totals.shares)} / share`
-                : undefined
-            }
-            icon={Wallet}
-          />
-          <StatTile
-            label="Profit / Loss"
-            value={`${totals.pnl >= 0 ? '+' : '−'}${money(Math.abs(totals.pnl))}`}
-            tone={totals.pnl >= 0 ? 'up' : 'down'}
-            sub={`${totals.pnlPct >= 0 ? '+' : '−'}${Math.abs(totals.pnlPct).toFixed(2)}%`}
-            subTone={totals.pnlPct >= 0 ? 'up' : 'down'}
-            icon={TrendingUp}
-          />
-          <StatTile
-            label="Rewards Earned"
+            label="Available to Trade"
             value={totals.rewards.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             valuePrefix="SF"
-            sub="Redeem from Rewards"
-            icon={Gift}
+            sub="SignalFace balance"
+            icon={Wallet}
           />
         </div>
 
@@ -273,7 +265,7 @@ export default function DashboardPage() {
 
         {/* Activity + Top Gainers */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
-          <ActivityFeedCard entries={PLACEHOLDER_ACTIVITY} />
+          <ActivityFeedCard entries={activity} />
           <TopGainersCard rows={topGainers} />
         </div>
       </div>

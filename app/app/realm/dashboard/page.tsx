@@ -208,14 +208,14 @@ export default function CreatorDashboardPage() {
           />
           <StatTile
             label="Signal Price"
-            value={`$${signal.price}`}
+            value={`₦${signal.price}`}
             sub={`${signal.priceChangePct >= 0 ? '+' : '−'}${Math.abs(signal.priceChangePct).toFixed(2)}%`}
             subTone={signal.priceChangePct >= 0 ? 'up' : 'down'}
             icon={DollarSign}
           />
           <StatTile
             label="Total Volume"
-            value={`$${Number(totals.volume).toLocaleString(undefined, {
+            value={`₦${Number(totals.volume).toLocaleString(undefined, {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}`}

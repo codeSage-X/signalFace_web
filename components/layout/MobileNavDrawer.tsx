@@ -16,13 +16,14 @@ import { useAuth } from '@/lib/stores';
  * is where the rest live on mobile, reusing the sidebar's `navItems` so the two
  * can't drift apart.
  */
-export const MobileNavDrawer = () => {
+export const MobileNavDrawer = ({ unreadMessages = 0 }: { unreadMessages?: number }) => {
   const [open, setOpen] = useState(false);
   // `createPortal` needs a DOM, which the server render doesn't have.
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const unreadLabel = unreadMessages > 99 ? '99+' : String(unreadMessages);
 
   useEffect(() => {
     setMounted(true);
@@ -124,14 +125,26 @@ export const MobileNavDrawer = () => {
                   <Link
                     key={item.href}
                     href={item.href}
+                    aria-label={
+                      item.href === '/app/messages' && unreadMessages > 0
+                        ? `Messages, ${unreadMessages} unread`
+                        : item.label
+                    }
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl transition ${
                       isActive
                         ? 'bg-white/[0.08] text-white font-semibold'
                         : 'text-white/70 hover:bg-white/[0.06] hover:text-white'
                     }`}
                   >
-                    <FontAwesomeIcon icon={item.icon} className="h-4 w-4" />
-                    <span className="text-sm">{item.label}</span>
+                    <span className="flex items-center gap-3 min-w-0 flex-1">
+                      <FontAwesomeIcon icon={item.icon} className="h-4 w-4 flex-shrink-0" />
+                      <span className="text-sm truncate">{item.label}</span>
+                    </span>
+                    {item.href === '/app/messages' && unreadMessages > 0 && (
+                      <span className="min-w-5 h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold leading-5 text-center shadow-sm shadow-primary/40">
+                        {unreadLabel}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

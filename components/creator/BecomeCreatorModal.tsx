@@ -69,12 +69,14 @@ export const BecomeCreatorModal = ({
     handleSubmit,
     watch,
     reset,
+    setError,
     formState: { errors },
   } = useForm<CreateRealmInput>({
     resolver: zodResolver(createRealmSchema),
     defaultValues: {
       name: '',
       category: '',
+      customCategory: '',
       slug: '',
       tagline: '',
       description: '',
@@ -84,6 +86,7 @@ export const BecomeCreatorModal = ({
 
   const name = watch('name');
   const slug = watch('slug');
+  const category = watch('category');
   const handlePreview = useMemo(() => slug || slugify(name || '') || 'your_realm', [slug, name]);
 
   // Reopening should always start clean rather than resume a half-filled form.
@@ -106,11 +109,25 @@ export const BecomeCreatorModal = ({
   if (!open) return null;
 
   const onSubmit = async (values: CreateRealmInput) => {
+    if (values.category === 'OTHER') {
+      const custom = values.customCategory.trim().toLowerCase();
+      const clash = REALM_CATEGORIES.some(
+        (c) => c !== 'OTHER' && REALM_CATEGORY_LABELS[c].toLowerCase() === custom,
+      );
+      if (clash) {
+        setError('customCategory', {
+          message: 'That category already exists, please select it from the dropdown',
+        });
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const realm = await realmsApi.create({
         name: values.name.trim(),
         category: values.category as RealmCategory,
+        ...(values.category === 'OTHER' ? { customCategory: values.customCategory.trim() } : {}),
         ...(values.slug ? { slug: values.slug } : {}),
         ...(values.tagline ? { tagline: values.tagline.trim() } : {}),
         ...(values.description ? { description: values.description.trim() } : {}),
@@ -256,6 +273,21 @@ export const BecomeCreatorModal = ({
                 ))}
               </select>
             </Field>
+
+            {category === 'OTHER' && (
+              <Field
+                label="Your category"
+                required
+                error={errors.customCategory?.message}
+                hint="Not seeing your niche? Name it"
+              >
+                <input
+                  {...register('customCategory')}
+                  placeholder="e.g. Poetry"
+                  className={inputClass}
+                />
+              </Field>
+            )}
 
             <Field
               label="Handle"

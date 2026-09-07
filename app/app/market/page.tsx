@@ -9,11 +9,13 @@ import {
 } from '@/components/dashboard/SignalMarketCard';
 import { marketApi, signalsApi, type MarketOverview, type SignalListItem } from '@/lib/api';
 import { useToast } from '@/lib/stores';
+import { BuySignalModal } from '@/components/trading/BuySignalModal';
 
 export default function MarketPage() {
   const [search, setSearch] = useState('');
   const [overview, setOverview] = useState<MarketOverview | null>(null);
   const [signals, setSignals] = useState<SignalListItem[]>([]);
+  const [buyingSignal, setBuyingSignal] = useState<SignalListItem | null>(null);
   const [loading, setLoading] = useState(true);
   const { addToast } = useToast();
 
@@ -52,10 +54,11 @@ export default function MarketPage() {
     );
   }, [signals, search]);
 
-  // Trading has no endpoint yet, so the button says so rather than failing
-  // silently — same pattern as Top Up in the sidebar.
-  const handleTrade = () =>
-    addToast({ message: 'Trading is coming soon.', type: 'info', duration: 3000 });
+  const refreshSignals = () =>
+    signalsApi
+      .list()
+      .then(setSignals)
+      .catch(() => {});
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 max-w-7xl mx-auto">
@@ -120,11 +123,17 @@ export default function MarketPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
             {filtered.map((signal) => (
-              <SignalMarketCard key={signal.id} signal={signal} onTrade={handleTrade} />
+              <SignalMarketCard key={signal.id} signal={signal} onTrade={setBuyingSignal} />
             ))}
           </div>
         )}
       </div>
+
+      <BuySignalModal
+        signal={buyingSignal}
+        onClose={() => setBuyingSignal(null)}
+        onPurchased={refreshSignals}
+      />
     </div>
   );
 }

@@ -91,7 +91,7 @@ let signInPromise: Promise<string> | null = null;
  * this app's user id. That is what allows the security rules to be scoped to a
  * conversation's participants instead of trusting every signed-in client.
  */
-export function ensureChatAuth(): Promise<string> {
+export function ensureChatAuth(options: { silent?: boolean } = {}): Promise<string> {
   if (!isChatConfigured) {
     // eslint-disable-next-line no-console
     console.error(
@@ -120,7 +120,7 @@ export function ensureChatAuth(): Promise<string> {
     try {
       return await Promise.race([signIn, timeout]);
     } catch (err) {
-      logChatError('firestore sign-in', err);
+      if (!options.silent) logChatError('firestore sign-in', err);
       // Cleared so a later attempt can retry rather than replaying the failure
       // for the rest of the session.
       signInPromise = null;

@@ -63,6 +63,13 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString();
 }
 
+function postDateTime(iso: string) {
+  const date = new Date(iso);
+  const day = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return `${day} at ${time}`;
+}
+
 // ─── Action button ────────────────────────────────────────────────────────────
 function ActionBtn({
   icon, count, onClick,
@@ -443,6 +450,50 @@ function TextContent({ post, index }: { post: FeedPost; index: number }) {
   );
 }
 
+function PostHeader({ post }: { post: FeedPost }) {
+  const name = post.realm?.name ?? post.author.displayName;
+  const href = post.realm ? `/app/r/${post.realm.slug}` : `/app/u/${post.author.username}`;
+  const meta = post.realm
+    ? `Published by @${post.author.username}`
+    : `@${post.author.username}`;
+
+  return (
+    <div className="absolute top-0 left-0 right-0 z-10 px-4 py-4 bg-gradient-to-b from-black via-black/85 to-transparent text-white pointer-events-none">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Link
+              href={href}
+              className="font-bold text-sm sm:text-base hover:underline truncate pointer-events-auto"
+            >
+              {name}
+            </Link>
+            {!post.realm && post.author.creatorStatus === 'APPROVED' && (
+              <VerifiedBadge size={16} />
+            )}
+            {post.realm && (
+              <span className="px-1.5 py-0.5 rounded bg-white/15 text-white text-[9px] font-bold uppercase tracking-wide flex-shrink-0">
+                Realm
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-white/55">
+            <span className="truncate">{meta}</span>
+            <span aria-hidden>·</span>
+            <span className="flex-shrink-0">{postDateTime(post.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+
+      {post.kind !== 'text' && post.body && (
+        <p className="mt-2 text-sm leading-snug text-white/95 whitespace-pre-line line-clamp-3 drop-shadow">
+          {post.body}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── One comment, with its reply thread ───────────────────────────────────────
 function CommentAvatar({ author, size = 8 }: { author: PostAuthor; size?: 6 | 8 }) {
   const dim = size === 6 ? 'w-6 h-6 text-[9px]' : 'w-8 h-8 text-[10px]';
@@ -809,7 +860,7 @@ function FeedItem({
   return (
     <div
       ref={ref}
-      className="h-full snap-start flex items-center justify-center lg:px-10"
+      className="h-full snap-start flex items-center justify-center lg:px-10 feed-item-slide-up"
     >
       {/* Mobile is edge-to-edge with the rail floating over the media; from `lg`
           the card becomes a fixed-width panel and the rail sits beside it. The
@@ -822,57 +873,7 @@ function FeedItem({
           ) : (
             <MediaCarousel post={post} isActive={isActive} />
           )}
-
-          {/* Bottom overlay. On mobile the media runs under the fixed tab bar, so
-              the caption keeps clear of it — and of the rail on its right. Left and
-              right are set separately because `px-*` and `pr-*` would collide. */}
-          <div className="absolute bottom-0 left-0 right-0 pl-4 pr-20 pt-16 pb-24 lg:pr-4 lg:pb-5 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none">
-            {/* A realm post is credited to the page, with the owner named just
-                below so attribution is never hidden. */}
-            <div className="flex items-center gap-1.5 mb-1 pointer-events-auto flex-wrap">
-              {post.realm ? (
-                <>
-                  <Link
-                    href={`/app/r/${post.realm.slug}`}
-                    className="text-white font-bold text-sm drop-shadow hover:underline"
-                  >
-                    {post.realm.name}
-                  </Link>
-                  <span className="px-1.5 py-0.5 rounded bg-white/15 text-white text-[9px] font-bold uppercase tracking-wide flex-shrink-0">
-                    Realm
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Link
-                    href={`/app/u/${post.author.username}`}
-                    className="text-white font-bold text-sm drop-shadow hover:underline"
-                  >
-                    @{post.author.username}
-                  </Link>
-                  {post.author.creatorStatus === 'APPROVED' && (
-                    <VerifiedBadge size={16} />
-                  )}
-                </>
-              )}
-              <span className="text-white/50 text-xs">· {timeAgo(post.createdAt)}</span>
-            </div>
-
-            {post.realm && (
-              <Link
-                href={`/app/u/${post.author.username}`}
-                className="inline-block mb-1 pointer-events-auto text-white/60 text-xs drop-shadow hover:underline"
-              >
-                by @{post.author.username}
-              </Link>
-            )}
-            {/* Media posts carry their text as a caption; text posts already show it. */}
-            {post.kind !== 'text' && post.body && (
-              <p className="text-white/95 text-sm leading-snug drop-shadow line-clamp-3">
-                {post.body}
-              </p>
-            )}
-          </div>
+          <PostHeader post={post} />
         </div>
 
         {/* Action icons — over the media on mobile, right of the card on desktop.

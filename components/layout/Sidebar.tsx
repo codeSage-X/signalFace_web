@@ -5,15 +5,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Search } from 'lucide-react';
 import { BrandMark } from '@/components/BrandMark';
-import { useAuth, useToast } from '@/lib/stores';
+import { useAuth } from '@/lib/stores';
 import { walletApi } from '@/lib/api';
-import { inviteLink } from '@/lib/utils';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChartLine,
   faUsers,
   faFire,
-  faBoltLightning,
   faBriefcase,
   faHeart,
   faGift,
@@ -35,21 +33,19 @@ export const navItems = [
   { href: '/app/friends', label: 'Friends', icon: faUserGroup },
   { href: '/app/messages', label: 'Messages', icon: faComments },
   { href: '/app/market', label: 'Market', icon: faChartLine },
-  { href: '/app/realms', label: 'Realms', icon: faBoltLightning },
   { href: '/app/signals', label: 'Signals', icon: faBriefcase },
-  { href: '/app/portfolio', label: 'Portfolio', icon: faChartLine },
   { href: '/app/watchlist', label: 'Watchlist', icon: faHeart },
   { href: '/app/rewards', label: 'Rewards', icon: faGift },
   { href: '/app/activity', label: 'Activity', icon: faHistory },
 ];
 
-export const Sidebar = () => {
+export const Sidebar = ({ unreadMessages = 0 }: { unreadMessages?: number }) => {
   const pathname = usePathname();
   const { user, isAuthenticated, logout } = useAuth();
-  const { addToast } = useToast();
   const router = useRouter();
   const [balance, setBalance] = useState<number | null>(null);
   const [searchDraft, setSearchDraft] = useState('');
+  const unreadLabel = unreadMessages > 99 ? '99+' : String(unreadMessages);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -69,35 +65,6 @@ export const Sidebar = () => {
       cancelled = true;
     };
   }, [isAuthenticated]);
-
-  const handleInvite = async () => {
-    // The code, not the username: registration looks up `referralCode`, so a
-    // username here matched no one and the referral silently paid nothing.
-    if (!user?.referralCode) {
-      addToast({
-        message: 'Your invite code is still loading. Try again in a moment.',
-        type: 'info',
-        duration: 3000,
-      });
-      return;
-    }
-
-    const link = inviteLink(user.referralCode);
-    try {
-      await navigator.clipboard.writeText(link);
-      addToast({
-        message: 'Invite link copied.',
-        type: 'success',
-        duration: 2500,
-      });
-    } catch {
-      addToast({
-        message: 'Could not copy the invite link.',
-        type: 'error',
-        duration: 3500,
-      });
-    }
-  };
 
   return (
     <div
@@ -169,14 +136,26 @@ export const Sidebar = () => {
               <Link
                 key={item.href}
                 href={item.href}
+                aria-label={
+                  item.href === '/app/messages' && unreadMessages > 0
+                    ? `Messages, ${unreadMessages} unread`
+                    : item.label
+                }
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                   isActive
                     ? 'brand-gradient text-white font-semibold brand-glow'
                     : 'text-white/70 hover:bg-white/[0.06] hover:text-white'
                 }`}
               >
-                <FontAwesomeIcon icon={item.icon} className="h-4 w-4" />
-                <span className="text-sm">{item.label}</span>
+                <span className="flex items-center gap-3 min-w-0 flex-1">
+                  <FontAwesomeIcon icon={item.icon} className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-sm truncate">{item.label}</span>
+                </span>
+                {item.href === '/app/messages' && unreadMessages > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold leading-5 text-center shadow-sm shadow-primary/40">
+                    {unreadLabel}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -198,13 +177,7 @@ export const Sidebar = () => {
               </p>
               <p className="text-xs text-white/40">Available to trade</p>
               <button
-                onClick={() =>
-                  addToast({
-                    message: 'Top ups are coming soon.',
-                    type: 'info',
-                    duration: 3000,
-                  })
-                }
+                onClick={() => router.push('/app/portfolio#deposit')}
                 className="mt-3 w-full brand-gradient text-white text-sm font-semibold py-2 rounded-xl
                 hover:brightness-110 transition"
               >
@@ -244,13 +217,13 @@ export const Sidebar = () => {
                 ))}
               </div>
 
-              <button
-                onClick={handleInvite}
+              <Link
+                href="/app/rewards#invite-friends"
                 className="w-full brand-gradient text-white text-sm font-semibold py-2 rounded-xl
-                hover:brightness-110 transition"
+                hover:brightness-110 transition inline-flex items-center justify-center"
               >
                 Invite Now
-              </button>
+              </Link>
             </div>
           </div>
         </nav>

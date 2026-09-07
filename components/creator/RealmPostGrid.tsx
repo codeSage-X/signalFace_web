@@ -26,6 +26,7 @@ export const RealmPostGrid = ({
   emptyTitle,
   emptyBody,
   emptyAction,
+  onPostClick,
 }: {
   posts: FeedPost[];
   loading: boolean;
@@ -35,6 +36,7 @@ export const RealmPostGrid = ({
   emptyTitle: string;
   emptyBody: string;
   emptyAction?: { href: string; label: string };
+  onPostClick?: (index: number) => void;
 }) => {
   if (loading) {
     return (
@@ -70,7 +72,7 @@ export const RealmPostGrid = ({
     <>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
         {posts.map((post, i) => (
-          <Tile key={post.id} post={post} index={i} />
+          <Tile key={post.id} post={post} index={i} onPostClick={onPostClick} />
         ))}
       </div>
 
@@ -88,13 +90,17 @@ export const RealmPostGrid = ({
   );
 };
 
-const Tile = ({ post, index }: { post: FeedPost; index: number }) => {
+const Tile = ({ post, index, onPostClick }: { post: FeedPost; index: number; onPostClick?: (index: number) => void }) => {
   const { kind, body, mediaUrls, viewCount, pinned } = post;
   const preview = mediaUrls[0];
   const grad = CARD_GRADIENTS[index % CARD_GRADIENTS.length];
 
   return (
-    <div className="relative group rounded-lg overflow-hidden aspect-[9/16] bg-gradient-to-br from-[#1A1424] to-[#12101A]">
+    <button
+      type="button"
+      onClick={() => onPostClick?.(index)}
+      className="relative group rounded-lg overflow-hidden aspect-[9/16] bg-gradient-to-br from-[#1A1424] to-[#12101A] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary text-left hover:brightness-110 transition-all"
+    >
       {kind === 'image' && preview ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={preview} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -135,6 +141,6 @@ const Tile = ({ post, index }: { post: FeedPost; index: number }) => {
       </div>
 
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-    </div>
+    </button>
   );
 };

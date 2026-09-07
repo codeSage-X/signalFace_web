@@ -17,6 +17,7 @@ import {
   realmsApi,
   usersApi,
   REALM_CATEGORY_LABELS,
+  realmCategoryLabel,
   type FeedPost,
   type FollowPerson,
   type Realm,
@@ -425,7 +426,7 @@ function RealmRow({ realm }: { realm: Realm }) {
             {realm.name}
           </span>
           <span className="block text-xs text-muted-foreground truncate">
-            {REALM_CATEGORY_LABELS[realm.category]} · {fmt(realm.followersCount)} followers
+            {realmCategoryLabel(realm)} · {fmt(realm.followersCount)} followers
           </span>
         </span>
       </NextLink>

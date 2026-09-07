@@ -162,7 +162,7 @@ export const mockCreators = [
   { id: '3', name: 'Crypto Sage', avatar: '🧙‍♂️', category: 'Education', followers: 75000, signalPrice: 6.91, change24h: 9.3, verified: true },
   { id: '4', name: 'Nova Tech', avatar: '🤖', category: 'Technology', followers: 60000, signalPrice: 5.23, change24h: 7.1, verified: true },
   { id: '5', name: 'Maya Moments', avatar: '🎬', category: 'Vlog', followers: 50000, signalPrice: 4.12, change24h: 6.3, verified: true },
-  { id: '6', name: 'Future Assets', avatar: '💼', category: 'Finance', followers: 45000, signalPrice: 3.45, change24h: 3.5, verified: false },
+  { id: '6', name: 'Signal Ownership', avatar: '💼', category: 'Finance', followers: 45000, signalPrice: 3.45, change24h: 3.5, verified: false },
 ];
 
 export const mockSignals = [
@@ -191,15 +191,6 @@ export const mockRewards = [
   { id: '5', title: 'Create Post', points: 150, frequency: 'daily', completed: false },
 ];
 
-export const mockActivity = [
-  { id: '1', action: 'You bought King Jay Signal', timestamp: '2h ago', points: '+10.5' },
-  { id: '2', action: 'You sold AI & Tech Realm Signal', timestamp: '15m ago', points: '-5.2' },
-  { id: '3', action: 'Ella Vibes signal price increased', timestamp: '1h ago', points: '+12.7' },
-  { id: '4', action: 'You earned 50 NXR Rewards', timestamp: '2h ago', points: '+50' },
-  { id: '5', action: 'Crypto Sage joined your realm', timestamp: '3h ago', points: '+5' },
-];
-
-
 // Generate price history for charts
 export const generatePriceHistory = (initialPrice: number, days: number = 30) => {
   const data = [];
@@ -222,7 +213,7 @@ export const mockFriends = [
   { id: '3', name: 'Crypto Sage', avatar: '🧙‍♂️', username: '@cryptosage', followers: 75000, isFollowing: false },
   { id: '4', name: 'Nova Tech', avatar: '🤖', username: '@novatech', followers: 60000, isFollowing: true },
   { id: '5', name: 'Maya Moments', avatar: '🎬', username: '@mayamoments', followers: 50000, isFollowing: false },
-  { id: '6', name: 'Future Assets', avatar: '💼', username: '@futureassets', followers: 45000, isFollowing: true },
+  { id: '6', name: 'Signal Ownership', avatar: '💼', username: '@signalownership', followers: 45000, isFollowing: true },
 ];
 
 // Followers list

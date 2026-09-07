@@ -1,11 +1,26 @@
 'use client';
 
+/**
+ * Fan Account Profile - User's personal profile for posting, following, and interacting.
+ * This is NOT a creator profile. To become a creator, users must create a Realm at /app/realm.
+ * Only Realms own Signals and generate creator value.
+ */
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import NextLink from 'next/link';
 import { useAuth } from '@/lib/stores';
 import { useToast } from '@/lib/stores';
-import { usersApi, postsApi, ApiError, type FeedPost, type Page } from '@/lib/api';
-import { CreatorMenuSection } from '@/components/creator/CreatorMenuSection';
+import {
+  usersApi,
+  postsApi,
+  walletApi,
+  ApiError,
+  type FeedPost,
+  type Page,
+  type WalletOverview,
+  type WalletTransaction,
+  type WalletTransactionType,
+} from '@/lib/api';
 import { ImmersiveFeed } from '@/components/feed/ImmersiveFeed';
 import {
   Share2,
@@ -20,7 +35,6 @@ import {
   Check,
   Pencil,
   Loader2,
-  LayoutDashboard,
   LayoutGrid,
   UserCircle,
   FileText,
@@ -30,17 +44,22 @@ import {
   PinOff,
   Trash2,
   BookmarkX,
+  UsersRound,
+  Wallet,
+  X,
 } from 'lucide-react';
 import { externalHref, displayUrl } from '@/lib/utils';
+import { FollowersFollowingModal } from '@/components/social/FollowersFollowingModal';
+import { naira } from '@/components/dashboard/SignalMarketCard';
 
 const MAX_PINNED_POSTS = 3;
 const PAGE_SIZE = 12;
-const TABS = ['Posts', 'Reposts', 'Favorites', 'Liked'] as const;
+const TABS = ['Posts', 'Portfolio', 'Reposts', 'Favorites', 'Liked'] as const;
 
 type Tab = (typeof TABS)[number];
 
 /** The three tabs that read a saved collection rather than the user's own posts. */
-type CollectionTab = Exclude<Tab, 'Posts'>;
+type CollectionTab = Exclude<Tab, 'Posts' | 'Portfolio'>;
 
 const COLLECTION_FETCHERS: Record<
   CollectionTab,
@@ -80,7 +99,33 @@ const EMPTY_COLLECTION: CollectionState = {
   loaded: false,
 };
 
-const isCollectionTab = (tab: Tab): tab is CollectionTab => tab !== 'Posts';
+const isCollectionTab = (tab: Tab): tab is CollectionTab =>
+  tab !== 'Posts' && tab !== 'Portfolio';
+
+const PROFILE_TXN_LABELS: Record<WalletTransactionType, string> = {
+  DEPOSIT: 'Deposit',
+  WITHDRAWAL: 'Withdrawal',
+  TRADE_BUY: 'Signal purchase',
+  TRADE_SELL: 'Signal sale',
+  SIGNUP_BONUS: 'Signup reward',
+  REFERRAL_BONUS: 'Referral reward',
+  ADMIN_ADJUST: 'Wallet adjustment',
+  REWARD_CLAIM: 'Reward claimed',
+};
+
+function formatNaira(raw: string | number) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return '₦0.00';
+  const sign = n > 0 ? '+' : n < 0 ? '-' : '';
+  return `${sign}₦${Math.abs(n).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function compactDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
 
 export default function ProfilePage() {
   const { user, updateUser, isAuthenticated, setAuthModalOpen } = useAuth();
@@ -91,9 +136,14 @@ export default function ProfilePage() {
   const [linkInput, setLinkInput] = useState(user?.websiteUrl ?? '');
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  const [followModal, setFollowModal] = useState<{ tab: 'followers' | 'following' } | null>(null);
+  const [profileWallet, setProfileWallet] = useState<WalletOverview | null>(null);
+  const [profileTransactions, setProfileTransactions] = useState<WalletTransaction[]>([]);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
 
   // Posts grid
   const [posts, setPosts] = useState<FeedPost[]>([]);
@@ -279,6 +329,36 @@ export default function ProfilePage() {
         if (mountedRef.current) patchCollection(tab, { loading: false });
       });
   }, [isAuthenticated, activeTab, patchCollection, addToast]);
+
+  useEffect(() => {
+    if (!isAuthenticated || activeTab !== 'Portfolio') return;
+
+    let cancelled = false;
+    setPortfolioLoading(true);
+
+    Promise.allSettled([walletApi.getMe(), walletApi.transactions(null, 8)])
+      .then(([walletResult, transactionResult]) => {
+        if (cancelled) return;
+        if (walletResult.status === 'fulfilled') setProfileWallet(walletResult.value);
+        if (transactionResult.status === 'fulfilled') {
+          setProfileTransactions(transactionResult.value.items);
+        }
+        if (walletResult.status === 'rejected' && transactionResult.status === 'rejected') {
+          addToast({
+            message: 'Could not load portfolio transparency.',
+            type: 'error',
+            duration: 4000,
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPortfolioLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, activeTab, addToast]);
 
   const loadMoreCollection = async (tab: CollectionTab) => {
     const { cursor } = collections[tab];
@@ -469,13 +549,32 @@ export default function ProfilePage() {
         <div className="flex flex-col sm:flex-row gap-6 items-start">
           {/* Avatar */}
           <div className="relative flex-shrink-0">
-            <div className="w-28 h-28 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-3xl font-bold text-white overflow-hidden ring-4 ring-border">
+            <button
+              type="button"
+              onClick={() => user?.avatarUrl && setAvatarPreviewOpen(true)}
+              disabled={!user?.avatarUrl}
+              aria-label="View your profile picture"
+              className="w-28 h-28 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-3xl font-bold text-white overflow-hidden ring-4 ring-border enabled:cursor-zoom-in enabled:hover:brightness-110 transition disabled:cursor-default"
+            >
               {user?.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
               ) : (
                 initials
               )}
-            </div>
+            </button>
+            {avatarPreviewOpen && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setAvatarPreviewOpen(false);
+                }}
+                aria-label="Close profile picture preview"
+                className="absolute -right-1 -top-1 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white shadow-lg hover:bg-black/90 transition"
+              >
+                <X size={14} />
+              </button>
+            )}
             {isEditing && (
               <>
                 <input
@@ -515,14 +614,20 @@ export default function ProfilePage() {
             {/* Stats */}
             <div className="flex gap-6 mb-4">
               {[
-                { label: 'Following', value: String(user?.followingCount ?? 0) },
-                { label: 'Followers', value: String(user?.followersCount ?? 0) },
-                { label: 'Likes', value: String(user?.likesCount ?? 0) },
+                { label: 'Following', value: String(user?.followingCount ?? 0), action: 'following' as const },
+                { label: 'Followers', value: String(user?.followersCount ?? 0), action: 'followers' as const },
+                { label: 'Likes', value: String(user?.likesCount ?? 0), action: null },
               ].map((s) => (
-                <div key={s.label} className="text-center sm:text-left">
+                <button
+                  key={s.label}
+                  onClick={() => s.action && setFollowModal({ tab: s.action })}
+                  disabled={!s.action}
+                  className={`text-center sm:text-left ${s.action ? 'hover:opacity-70 transition cursor-pointer' : ''}`}
+                  type="button"
+                >
                   <span className="font-bold text-foreground">{s.value}</span>{' '}
                   <span className="text-muted-foreground text-sm">{s.label}</span>
-                </div>
+                </button>
               ))}
             </div>
 
@@ -545,6 +650,13 @@ export default function ProfilePage() {
               >
                 <Share2 size={14} className="text-foreground" />
               </button>
+              <NextLink
+                href="/app/groups?create=1"
+                title="Create a group"
+                className="w-8 h-8 flex items-center justify-center rounded-full glass-chip hover:brightness-125 transition"
+              >
+                <UsersRound size={14} className="text-foreground" />
+              </NextLink>
 
               {/* More actions */}
               <div className="relative" ref={moreMenuRef}>
@@ -566,16 +678,6 @@ export default function ProfilePage() {
                     role="menu"
                     className="absolute left-0 top-10 z-50 w-48 glass-card rounded-xl shadow-2xl py-1"
                   >
-                    <NextLink
-                      role="menuitem"
-                      href="/app/dashboard"
-                      onClick={() => setMoreMenuOpen(false)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-sidebar-accent transition text-left"
-                    >
-                      <LayoutDashboard size={15} className="text-muted-foreground" />
-                      Dashboard
-                    </NextLink>
-                    <CreatorMenuSection onDismiss={() => setMoreMenuOpen(false)} />
                     <button
                       role="menuitem"
                       onClick={() => {
@@ -681,6 +783,7 @@ export default function ProfilePage() {
                 }`}
               >
                 {tab === 'Posts' && <LayoutGrid size={14} />}
+                {tab === 'Portfolio' && <Wallet size={14} />}
                 {tab === 'Reposts' && <Repeat2 size={14} />}
                 {tab === 'Favorites' && <Bookmark size={14} />}
                 {tab === 'Liked' && <Heart size={14} />}
@@ -754,6 +857,12 @@ export default function ProfilePage() {
               )}
             </>
           )
+        ) : activeTab === 'Portfolio' ? (
+          <ProfilePortfolioTransparency
+            wallet={profileWallet}
+            transactions={profileTransactions}
+            loading={portfolioLoading}
+          />
         ) : isCollectionTab(activeTab) ? (
           (() => {
             const { items, cursor, loading, loaded } = collections[activeTab];
@@ -841,6 +950,42 @@ export default function ProfilePage() {
           />
         </div>
       )}
+
+      {followModal && user && (
+        <FollowersFollowingModal
+          username={user.username}
+          initialTab={followModal.tab}
+          onClose={() => setFollowModal(null)}
+        />
+      )}
+
+      {avatarPreviewOpen && user?.avatarUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Your profile picture"
+          onClick={() => setAvatarPreviewOpen(false)}
+        >
+          <div
+            className="relative h-[min(72vw,28rem)] w-[min(72vw,28rem)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="h-full w-full overflow-hidden rounded-full bg-background ring-4 ring-white/20 shadow-2xl">
+              <img src={user.avatarUrl} alt="Your profile picture" className="h-full w-full object-cover" />
+            </div>
+            {/* Sits outside the circular clip mask so it doesn't get cut off. */}
+            <button
+              type="button"
+              onClick={() => setAvatarPreviewOpen(false)}
+              aria-label="Close profile picture"
+              className="absolute -right-2 -top-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -854,6 +999,140 @@ const CARD_GRADIENTS = [
   'from-[#C4143F] to-[#3B0B57]',
   'from-[#2A1B36] to-[#12101A]',
 ];
+
+function ProfilePortfolioTransparency({
+  wallet,
+  transactions,
+  loading,
+}: {
+  wallet: WalletOverview | null;
+  transactions: WalletTransaction[];
+  loading: boolean;
+}) {
+  const holdings = wallet?.holdings ?? [];
+  const balance = Number(wallet?.pointsBalance ?? 0);
+  const change = wallet?.change24h ?? 0;
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="glass-card rounded-2xl h-36 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5 max-w-6xl">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="glass-card rounded-2xl p-4">
+          <p className="text-xs text-muted-foreground">Portfolio Value</p>
+          <p className="mt-2 text-xl font-bold text-foreground">
+            {naira(wallet?.totalValue ?? 0)}
+          </p>
+        </div>
+        <div className="glass-card rounded-2xl p-4">
+          <p className="text-xs text-muted-foreground">24-hour Change</p>
+          <p className={`mt-2 text-xl font-bold ${change >= 0 ? 'text-up' : 'text-down'}`}>
+            {change >= 0 ? '+' : ''}
+            {change.toFixed(2)}%
+          </p>
+        </div>
+        <div className="glass-card rounded-2xl p-4">
+          <p className="text-xs text-muted-foreground">Holdings</p>
+          <p className="mt-2 text-xl font-bold text-foreground">{holdings.length}</p>
+        </div>
+        <div className="glass-card rounded-2xl p-4">
+          <p className="text-xs text-muted-foreground">Available to Trade</p>
+          <p className="mt-2 text-xl font-bold text-foreground">
+            ₦
+            {balance.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <section className="glass-card rounded-2xl overflow-hidden">
+          <div className="p-5 border-b border-white/10">
+            <h2 className="font-bold text-foreground">Holdings Transparency</h2>
+          </div>
+          {holdings.length === 0 ? (
+            <p className="p-6 text-center text-sm text-muted-foreground">No holdings yet.</p>
+          ) : (
+            <ul className="divide-y divide-white/10">
+              {holdings.map((holding) => (
+                <li key={holding.signalId} className="p-4 flex items-center justify-between gap-4">
+                  <NextLink href={`/app/u/${holding.creatorUsername}`} className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {holding.creatorName}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      @{holding.creatorUsername} ·{' '}
+                      {Number(holding.quantity).toLocaleString(undefined, {
+                        maximumFractionDigits: 4,
+                      })}{' '}
+                      shares
+                    </p>
+                  </NextLink>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-semibold text-foreground">
+                      {naira(holding.currentValue)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Avg {naira(holding.avgBuyPrice)}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="glass-card rounded-2xl overflow-hidden">
+          <div className="p-5 border-b border-white/10">
+            <h2 className="font-bold text-foreground">Transaction History</h2>
+          </div>
+          {transactions.length === 0 ? (
+            <p className="p-6 text-center text-sm text-muted-foreground">No transactions yet.</p>
+          ) : (
+            <ul className="divide-y divide-white/10">
+              {transactions.map((transaction) => (
+                <li key={transaction.id} className="p-4 flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground">
+                      {PROFILE_TXN_LABELS[transaction.type]}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {transaction.note ?? compactDate(transaction.createdAt)}
+                    </p>
+                  </div>
+                  <p
+                    className={`text-sm font-bold flex-shrink-0 ${
+                      Number(transaction.amount) >= 0 ? 'text-up' : 'text-down'
+                    }`}
+                  >
+                    {formatNaira(transaction.amount)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <NextLink
+        href="/app/portfolio"
+        className="inline-flex items-center justify-center rounded-xl brand-gradient px-5 py-2.5 text-sm font-semibold text-white hover:brightness-110 transition"
+      >
+        Open portfolio dashboard
+      </NextLink>
+    </div>
+  );
+}
 
 function PostGridCard({
   post,

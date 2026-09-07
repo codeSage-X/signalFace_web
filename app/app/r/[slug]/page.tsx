@@ -1,5 +1,12 @@
 'use client';
 
+/**
+ * Public Creator Realm Profile - The creator's Signal and realm page.
+ * This is the creator profile with the Signal - not their fan account.
+ * Visitors can see realm posts, follow the realm, and trade the Signal.
+ * The creator manages their realm at /app/realm (with auth).
+ */
+
 import { useCallback, useEffect, useState } from 'react';
 import NextLink from 'next/link';
 import { useParams } from 'next/navigation';
@@ -11,10 +18,12 @@ import {
   Share2,
   TrendingUp,
   Users,
+  X,
 } from 'lucide-react';
 import { externalHref, displayUrl } from '@/lib/utils';
 import {
   REALM_CATEGORY_LABELS,
+  realmCategoryLabel,
   realmsApi,
   type FeedPost,
   type Realm,
@@ -22,6 +31,8 @@ import {
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useToast } from '@/lib/stores';
 import { RealmPostGrid } from '@/components/creator/RealmPostGrid';
+import { PostDetailModal } from '@/components/social/PostDetailModal';
+import { RealmFollowersModal } from '@/components/social/RealmFollowersModal';
 
 const PAGE_SIZE = 12;
 const TABS = ['Posts', 'About'] as const;
@@ -45,6 +56,9 @@ export default function PublicRealmPage() {
   const [postsLoading, setPostsLoading] = useState(true);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [showFollowers, setShowFollowers] = useState(false);
+  const [iconPreviewOpen, setIconPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -192,21 +206,27 @@ export default function PublicRealmPage() {
       <div className="px-6 lg:px-10">
         {/* Identity */}
         <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-12 sm:-mt-14 relative">
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl brand-gradient flex items-center justify-center text-3xl font-bold text-white overflow-hidden ring-4 ring-background flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => realm.iconUrl && setIconPreviewOpen(true)}
+            disabled={!realm.iconUrl}
+            aria-label={`View ${realm.name}'s profile picture`}
+            className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl brand-gradient flex items-center justify-center text-3xl font-bold text-white overflow-hidden ring-4 ring-background flex-shrink-0 disabled:cursor-default enabled:cursor-zoom-in enabled:hover:brightness-110 transition"
+          >
             {realm.iconUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={realm.iconUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               realm.name.charAt(0).toUpperCase()
             )}
-          </div>
+          </button>
 
           <div className="flex-1 min-w-0 pb-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold text-foreground">{realm.name}</h1>
               <BadgeCheck size={18} className="text-primary flex-shrink-0" />
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sidebar-accent text-foreground">
-                {REALM_CATEGORY_LABELS[realm.category]}
+                {realmCategoryLabel(realm)}
               </span>
             </div>
             <p className="text-sm text-muted-foreground">
@@ -226,13 +246,17 @@ export default function PublicRealmPage() {
 
         {/* Stats */}
         <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
-          <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowFollowers(true)}
+            className="flex items-center gap-2 hover:opacity-70 transition cursor-pointer"
+            type="button"
+          >
             <Users size={15} className="text-muted-foreground" />
             <span className="font-bold text-foreground">
               {realm.followersCount.toLocaleString()}
             </span>
             <span className="text-sm text-muted-foreground">Followers</span>
-          </div>
+          </button>
           <div className="flex items-center gap-2">
             <span className="font-bold text-foreground">{realm.postsCount.toLocaleString()}</span>
             <span className="text-sm text-muted-foreground">Posts</span>
@@ -241,7 +265,7 @@ export default function PublicRealmPage() {
             <div className="flex items-center gap-2">
               <TrendingUp size={15} className="text-muted-foreground" />
               <span className="font-bold text-foreground">
-                ${Number(realm.signal.price).toFixed(2)}
+                ₦{Number(realm.signal.price).toFixed(2)}
               </span>
               <span className="text-sm text-muted-foreground">Signal price</span>
             </div>
@@ -315,12 +339,13 @@ export default function PublicRealmPage() {
               nextCursor={nextCursor}
               loadingMore={loadingMore}
               onLoadMore={loadMore}
+              onPostClick={setOpenIndex}
               emptyTitle="No posts yet"
               emptyBody={`${realm.name} hasn't published anything to this realm yet.`}
             />
           ) : (
             <div className="max-w-xl space-y-4 py-2">
-              <Row label="Category" value={REALM_CATEGORY_LABELS[realm.category]} />
+              <Row label="Category" value={realmCategoryLabel(realm)} />
               <Row label="Handle" value={`@${realm.slug}`} />
               <Row
                 label="Created"
@@ -361,6 +386,50 @@ export default function PublicRealmPage() {
           )}
         </div>
       </div>
+
+      {/* Post viewer modal */}
+      {openIndex !== null && posts[openIndex] && (
+        <PostDetailModal
+          posts={posts}
+          index={openIndex}
+          onIndexChange={setOpenIndex}
+          onClose={() => setOpenIndex(null)}
+        />
+      )}
+
+      {/* Realm followers modal */}
+      {showFollowers && realm && (
+        <RealmFollowersModal slug={realm.slug} onClose={() => setShowFollowers(false)} />
+      )}
+
+      {iconPreviewOpen && realm.iconUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${realm.name}'s profile picture`}
+          onClick={() => setIconPreviewOpen(false)}
+        >
+          <div
+            className="relative h-[min(72vw,28rem)] w-[min(72vw,28rem)] overflow-hidden rounded-full bg-background ring-4 ring-white/20 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <img
+              src={realm.iconUrl}
+              alt={`${realm.name}'s profile picture`}
+              className="h-full w-full object-cover"
+            />
+            <button
+              type="button"
+              onClick={() => setIconPreviewOpen(false)}
+              aria-label="Close profile picture"
+              className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,10 +1,10 @@
 'use client';
 
 import NextLink from 'next/link';
-import { Gift, ShoppingBag, TrendingUp, UserPlus } from 'lucide-react';
+import { Gift, Heart, MessageSquare, Repeat2, ShoppingBag, TrendingUp, UserPlus } from 'lucide-react';
 import { DASH } from './theme';
 
-export type ActivityKind = 'buy' | 'reward' | 'price' | 'referral';
+export type ActivityKind = 'buy' | 'reward' | 'price' | 'referral' | 'like' | 'comment' | 'repost';
 
 export interface ActivityEntry {
   id: string;
@@ -21,6 +21,9 @@ const ICONS = {
   reward: Gift,
   price: TrendingUp,
   referral: UserPlus,
+  like: Heart,
+  comment: MessageSquare,
+  repost: Repeat2,
 } as const;
 
 const ICON_BG = {
@@ -28,6 +31,9 @@ const ICON_BG = {
   reward: DASH.iconAmber,
   price: DASH.iconPink,
   referral: DASH.iconIndigo,
+  like: DASH.iconPink,
+  comment: DASH.iconIndigo,
+  repost: DASH.iconAmber,
 } as const;
 
 export const ActivityFeedCard = ({ entries }: { entries: ActivityEntry[] }) => (

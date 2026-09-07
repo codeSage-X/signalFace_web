@@ -1,16 +1,24 @@
 'use client';
 
+/**
+ * Public Fan Account Profile - View someone's posts and follow them.
+ * This shows their personal fan account, NOT their creator realm.
+ * To see if they're a creator with a Signal, check /app/r/[realmSlug].
+ */
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Link2, Play, Eye, FileText, Image as ImageIcon,
-  Loader2, ArrowLeft, UserPlus, UserCheck, LayoutGrid, MessageCircle,
+  Loader2, ArrowLeft, UserPlus, UserCheck, LayoutGrid, MessageCircle, X,
 } from 'lucide-react';
 import { externalHref, displayUrl } from '@/lib/utils';
 import { postsApi, usersApi, type FeedPost, type PublicProfile } from '@/lib/api';
 import { useAuth, useToast } from '@/lib/stores';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { PostDetailModal } from '@/components/social/PostDetailModal';
+import { FollowersFollowingModal } from '@/components/social/FollowersFollowingModal';
 
 const PAGE_SIZE = 12;
 
@@ -39,6 +47,9 @@ export default function PublicProfilePage() {
   const [postsLoading, setPostsLoading] = useState(true);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
+  const [followModal, setFollowModal] = useState<{ tab: 'followers' | 'following' } | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingMoreRef = useRef(false);
 
@@ -223,37 +234,44 @@ export default function PublicProfilePage() {
 
         <div className="flex flex-col sm:flex-row gap-6 items-start">
           {/* Avatar */}
-          <div className="w-28 h-28 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-3xl font-bold text-white overflow-hidden ring-4 ring-border flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => profile.avatarUrl && setAvatarPreviewOpen(true)}
+            disabled={!profile.avatarUrl}
+            aria-label={`View ${profile.displayName}'s profile picture`}
+            className="w-28 h-28 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-3xl font-bold text-white overflow-hidden ring-4 ring-border flex-shrink-0 disabled:cursor-default enabled:cursor-zoom-in enabled:hover:brightness-110 transition"
+          >
             {profile.avatarUrl ? (
               <img src={profile.avatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               initials
             )}
-          </div>
+          </button>
 
           {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-3 mb-2">
               <h1 className="text-xl font-bold text-foreground">{profile.displayName}</h1>
               <span className="text-muted-foreground text-sm">@{profile.username}</span>
-              {profile.creatorStatus === 'APPROVED' && (
-                <span className="px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-semibold">
-                  Creator
-                </span>
-              )}
             </div>
 
             <div className="flex gap-6 mb-4">
               {[
-                { label: 'Posts', value: profile.postsCount },
-                { label: 'Following', value: profile.followingCount },
-                { label: 'Followers', value: profile.followersCount },
-                { label: 'Likes', value: profile.likesCount },
+                { label: 'Posts', value: profile.postsCount, action: null },
+                { label: 'Following', value: profile.followingCount, action: 'following' },
+                { label: 'Followers', value: profile.followersCount, action: 'followers' },
+                { label: 'Likes', value: profile.likesCount, action: null },
               ].map((s) => (
-                <div key={s.label} className="text-center sm:text-left">
+                <button
+                  key={s.label}
+                  onClick={() => s.action && setFollowModal({ tab: s.action as any })}
+                  disabled={!s.action}
+                  className={`text-center sm:text-left ${s.action ? 'hover:opacity-70 transition cursor-pointer' : ''}`}
+                  type="button"
+                >
                   <span className="font-bold text-foreground">{s.value.toLocaleString()}</span>{' '}
                   <span className="text-muted-foreground text-sm">{s.label}</span>
-                </div>
+                </button>
               ))}
             </div>
 
@@ -336,7 +354,12 @@ export default function PublicProfilePage() {
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
               {posts.map((p, i) => (
-                <ProfilePostCard key={p.id} post={p} index={i} />
+                <ProfilePostCard
+                  key={p.id}
+                  post={p}
+                  index={i}
+                  onPostClick={() => setOpenIndex(i)}
+                />
               ))}
             </div>
 
@@ -349,17 +372,76 @@ export default function PublicProfilePage() {
           </>
         )}
       </div>
+
+      {openIndex !== null && (
+        <PostDetailModal
+          posts={posts}
+          index={openIndex}
+          onClose={() => setOpenIndex(null)}
+          onIndexChange={setOpenIndex}
+        />
+      )}
+
+      {followModal && profile && (
+        <FollowersFollowingModal
+          username={profile.username}
+          initialTab={followModal.tab}
+          onClose={() => setFollowModal(null)}
+        />
+      )}
+
+      {avatarPreviewOpen && profile.avatarUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${profile.displayName}'s profile picture`}
+          onClick={() => setAvatarPreviewOpen(false)}
+        >
+          <div
+            className="relative h-[min(72vw,28rem)] w-[min(72vw,28rem)] overflow-hidden rounded-full bg-background ring-4 ring-white/20 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <img
+              src={profile.avatarUrl}
+              alt={`${profile.displayName}'s profile picture`}
+              className="h-full w-full object-cover"
+            />
+            <button
+              type="button"
+              onClick={() => setAvatarPreviewOpen(false)}
+              aria-label="Close profile picture"
+              className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function ProfilePostCard({ post, index }: { post: FeedPost; index: number }) {
+function ProfilePostCard({
+  post,
+  index,
+  onPostClick,
+}: {
+  post: FeedPost;
+  index: number;
+  onPostClick?: (index: number) => void;
+}) {
   const { kind, pinned, viewCount, body, mediaUrls } = post;
   const grad = CARD_GRADIENTS[index % CARD_GRADIENTS.length];
   const preview = mediaUrls[0];
 
   return (
-    <div className="relative group cursor-pointer rounded-lg overflow-hidden aspect-[9/16] bg-gradient-to-br from-[#1A1424] to-[#12101A]">
+    <button
+      onClick={() => onPostClick?.(index)}
+      className="relative group cursor-pointer rounded-lg overflow-hidden aspect-[9/16] bg-gradient-to-br from-[#1A1424] to-[#12101A] hover:ring-2 hover:ring-primary/50 transition-all border-0"
+      type="button"
+      aria-label={`Open post ${index + 1}`}
+    >
       {kind === 'image' && preview ? (
         <img src={preview} alt="" className="absolute inset-0 w-full h-full object-cover" />
       ) : kind === 'video' && preview ? (
@@ -399,6 +481,6 @@ function ProfilePostCard({ post, index }: { post: FeedPost; index: number }) {
       </div>
 
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
-    </div>
+    </button>
   );
 }

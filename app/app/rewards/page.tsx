@@ -140,11 +140,20 @@ export default function RewardsPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 lg:px-8 py-8 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Rewards</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Claim bonuses and earn for every friend who joins.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Rewards</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Claim bonuses and earn for every friend who joins.
+          </p>
+        </div>
+        <a
+          href="#invite-friends"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white brand-gradient hover:brightness-110 transition"
+        >
+          <UsersIcon size={15} />
+          Invite Friends
+        </a>
       </div>
 
       {/* Totals */}
@@ -167,8 +176,8 @@ export default function RewardsPage() {
       </div>
 
       {/* Invite */}
-      <section className="glass-card rounded-2xl p-6">
-        <h2 className="font-bold text-foreground">Invite friends</h2>
+      <section id="invite-friends" aria-labelledby="invite-friends-title" className="glass-card rounded-2xl p-6 scroll-mt-20">
+        <h2 id="invite-friends-title" className="font-bold text-foreground">Invite friends</h2>
         <p className="text-sm text-muted-foreground mt-1">
           {referrals?.bonusAmount
             ? `You earn ${fmtPoints(referrals.bonusAmount)} SF each time someone you invite verifies their account.`

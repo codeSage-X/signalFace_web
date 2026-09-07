@@ -332,6 +332,7 @@ export const authApi = {
 
 export interface SignalListItem {
   id: string;
+  title: string | null;
   creatorId: string;
   creatorName: string;
   creatorUsername: string;
@@ -342,6 +343,20 @@ export interface SignalListItem {
   holdersCount: number;
   lastScoredAt: string | null;
   createdAt: string;
+}
+
+export interface SignalPurchaseResult {
+  tradeId?: string | null;
+  transactionId?: string;
+  signalId: string;
+  creatorName?: string;
+  creatorUsername?: string;
+  quantity: string;
+  pricePerUnit?: string;
+  totalPoints: string;
+  balance?: string;
+  txRef?: string;
+  url?: string | null;
 }
 
 export interface MarketOverview {
@@ -368,6 +383,29 @@ export interface WalletOverview {
   totalValue: string;
   change24h: number;
 }
+
+export type WalletTransactionType =
+  | 'DEPOSIT'
+  | 'WITHDRAWAL'
+  | 'TRADE_BUY'
+  | 'TRADE_SELL'
+  | 'SIGNUP_BONUS'
+  | 'REFERRAL_BONUS'
+  | 'ADMIN_ADJUST'
+  | 'REWARD_CLAIM';
+
+export interface WalletTransaction {
+  id: string;
+  type: WalletTransactionType;
+  amount: string;
+  balanceAfter: string;
+  note: string | null;
+  externalRef: string | null;
+  tradeId: string | null;
+  createdAt: string;
+}
+
+export type KycStatus = 'NOT_STARTED' | 'PROCESSING' | 'VERIFIED' | 'REQUIRES_INPUT' | 'CANCELED';
 
 // ─── Rewards & referrals ──────────────────────────────────────────────────────
 
@@ -419,6 +457,14 @@ export const rewardsApi = {
 
 export const signalsApi = {
   list: () => request<SignalListItem[]>('/signals'),
+  buy: (
+    id: string,
+    body: { quantity: number; paymentMethod?: 'balance' | 'flutterwave' },
+  ) =>
+    request<SignalPurchaseResult>(`/signals/${encodeURIComponent(id)}/buy`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 };
 
 export const marketApi = {
@@ -427,6 +473,93 @@ export const marketApi = {
 
 export const walletApi = {
   getMe: () => request<WalletOverview>('/wallet/me'),
+  transactions: (cursor?: string | null, limit?: number) =>
+    request<Page<WalletTransaction>>(`/wallet/transactions${pageQuery(cursor, limit)}`),
+  deposit: (body: { amount: number; note?: string }) =>
+    request<{ txRef: string; url: string | null }>('/wallet/deposit', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  verifyFlutterwave: (body: {
+    transactionId?: string;
+    transaction_id?: string;
+    txRef?: string;
+    tx_ref?: string;
+  }) =>
+    request<{
+      processed: boolean;
+      kind?: 'deposit' | 'signal_buy';
+      transactionId?: string;
+      balance?: string;
+      purchase?: SignalPurchaseResult;
+      reason?: string;
+    }>('/wallet/flutterwave/verify', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  withdraw: (body: {
+    amount: number;
+    note?: string;
+    accountBank: string;
+    accountNumber: string;
+    beneficiaryName: string;
+  }) =>
+    request<{ transactionId: string; amount: string; balance: string }>('/wallet/withdraw', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  kyc: () =>
+    request<{ kycStatus: KycStatus; kycReference: string | null }>('/wallet/kyc'),
+  createKycSession: () =>
+    request<{
+      kycStatus: KycStatus;
+      kycReference?: string | null;
+    }>('/wallet/kyc/session', { method: 'POST' }),
+  requestKyc: (body: {
+    legalName: string;
+    country: string;
+    idType: 'passport' | 'national_id' | 'drivers_license' | 'voter_id';
+    idLast4: string;
+  }) =>
+    request<{
+      kycStatus: KycStatus;
+      kycReference: string | null;
+    }>('/wallet/kyc/request', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+};
+
+// ─── Activity & notifications ────────────────────────────────────────────────
+
+export type ActivityKind =
+  | 'transaction'
+  | 'reward'
+  | 'follow'
+  | 'like'
+  | 'comment'
+  | 'repost';
+
+export interface ActivityItem {
+  id: string;
+  kind: ActivityKind;
+  title: string;
+  body: string | null;
+  amount: string | null;
+  tone: 'up' | 'down' | 'neutral';
+  createdAt: string;
+  actor: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+  } | null;
+  postId: string | null;
+}
+
+export const activityApi = {
+  list: (cursor?: string | null, limit?: number) =>
+    request<Page<ActivityItem>>(`/activity/me${pageQuery(cursor, limit)}`),
 };
 
 /** A person in the followers / following lists. */
@@ -494,6 +627,16 @@ export const usersApi = {
   search: (q: string, cursor?: string | null, limit?: number) =>
     request<Page<FollowPerson>>(
       `/users/search?q=${encodeURIComponent(q)}${pageQuery(cursor, limit).replace('?', '&')}`,
+    ),
+  /** Get a specific user's followers. */
+  userFollowers: (username: string, cursor?: string | null, limit?: number) =>
+    request<Page<FollowPerson>>(
+      `/users/${encodeURIComponent(username)}/followers${pageQuery(cursor, limit)}`,
+    ),
+  /** Get a specific user's following. */
+  userFollowing: (username: string, cursor?: string | null, limit?: number) =>
+    request<Page<FollowPerson>>(
+      `/users/${encodeURIComponent(username)}/following${pageQuery(cursor, limit)}`,
     ),
 };
 
@@ -748,11 +891,20 @@ export const REALM_CATEGORY_LABELS: Record<RealmCategory, string> = {
 
 export type RealmStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
 
+/** A realm's category label — the creator's own name when they picked "Other". */
+export function realmCategoryLabel(realm: { category: RealmCategory; customCategory: string | null }) {
+  return realm.category === 'OTHER' && realm.customCategory
+    ? realm.customCategory
+    : REALM_CATEGORY_LABELS[realm.category];
+}
+
 export interface Realm {
   id: string;
   name: string;
   slug: string;
   category: RealmCategory;
+  /** The creator's own label, set when `category` is OTHER. */
+  customCategory: string | null;
   tagline: string | null;
   description: string | null;
   iconUrl: string | null;
@@ -777,6 +929,8 @@ export interface Realm {
 export interface CreateRealmBody {
   name: string;
   category: RealmCategory;
+  /** Required when `category` is 'OTHER'. */
+  customCategory?: string;
   slug?: string;
   tagline?: string;
   description?: string;
@@ -851,6 +1005,13 @@ export const realmsApi = {
     request<Realm>('/realms', { method: 'POST', body: JSON.stringify(body) }),
   /** Null when the viewer hasn't become a creator yet. */
   getMine: () => request<Realm | null>('/realms/me'),
+  /** Every realm the viewer owns, for the page switcher. */
+  listMine: () => request<Array<Realm & { isActive: boolean }>>('/realms/mine'),
+  setActive: (realmId: string) =>
+    request<Realm>('/realms/me/active', {
+      method: 'PATCH',
+      body: JSON.stringify({ realmId }),
+    }),
   update: (body: Partial<Omit<CreateRealmBody, 'slug'>>) =>
     request<Realm>('/realms/me', { method: 'PATCH', body: JSON.stringify(body) }),
   uploadAvatar: (file: File) => {
@@ -878,5 +1039,10 @@ export const realmsApi = {
     request<{ slug: string; following: boolean; followersCount: number }>(
       `/realms/${encodeURIComponent(slug)}/follow`,
       { method: 'POST' },
+    ),
+  /** Get a realm's followers. */
+  followers: (slug: string, cursor?: string | null, limit?: number) =>
+    request<Page<FollowPerson>>(
+      `/realms/${encodeURIComponent(slug)}/followers${pageQuery(cursor, limit)}`,
     ),
 };

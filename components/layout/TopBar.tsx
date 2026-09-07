@@ -2,15 +2,22 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/stores';
-import { Bell, Search, Settings, User, LogOut, X, Plus } from 'lucide-react';
+import { Bell, MessageCircle, Search, Settings, User, Briefcase, LogOut, X, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BrandMark } from '@/components/BrandMark';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { MobileNavDrawer } from '@/components/layout/MobileNavDrawer';
 import { CreatorMenuSection } from '@/components/creator/CreatorMenuSection';
 import { useProfileSwitch } from '@/hooks/useCreatorProfile';
 
-export const TopBar = () => {
+export const TopBar = ({
+  unreadMessages = 0,
+  unreadActivity = 0,
+}: {
+  unreadMessages?: number;
+  unreadActivity?: number;
+}) => {
   const { user, logout, setAuthModalOpen } = useAuth();
   const { mode, realm } = useProfileSwitch();
   const [open, setOpen] = useState(false);
@@ -47,6 +54,8 @@ export const TopBar = () => {
   const asRealm = mode === 'creator' && Boolean(realm);
   const avatarUrl = asRealm ? realm?.iconUrl : user?.avatarUrl;
   const avatarFallback = asRealm ? (realm?.name.charAt(0).toUpperCase() ?? '?') : initials;
+  const unreadMessagesLabel = unreadMessages > 99 ? '99+' : String(unreadMessages);
+  const unreadActivityLabel = unreadActivity > 99 ? '99+' : String(unreadActivity);
 
   const avatar = (
     <button
@@ -96,6 +105,16 @@ export const TopBar = () => {
         View profile
       </Link>
 
+      <Link
+        role="menuitem"
+        href="/app/portfolio"
+        onClick={() => setOpen(false)}
+        className="flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-sidebar-accent transition"
+      >
+        <Briefcase size={16} className="text-muted-foreground" />
+        Portfolio
+      </Link>
+
       <CreatorMenuSection onDismiss={() => setOpen(false)} />
 
       <div className="h-px bg-border my-1" />
@@ -128,11 +147,49 @@ export const TopBar = () => {
         <div className="flex items-center gap-1 glass-chip rounded-full pl-2 pr-1.5 py-1.5 shadow-lg">
           <Link
             href="/app/activity"
-            title="Notifications"
-            className="w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
+            title={
+              unreadActivity > 0
+                ? `${unreadActivity} new notification${unreadActivity === 1 ? '' : 's'}`
+                : 'Notifications'
+            }
+            aria-label={
+              unreadActivity > 0
+                ? `Notifications, ${unreadActivity} new notification${unreadActivity === 1 ? '' : 's'}`
+                : 'Notifications'
+            }
+            className="relative w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
           >
             <Bell size={19} />
+            {unreadActivity > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold leading-4 text-center shadow-sm shadow-primary/40">
+                {unreadActivityLabel}
+              </span>
+            )}
           </Link>
+
+          <Link
+            href="/app/messages"
+            title={
+              unreadMessages > 0
+                ? `${unreadMessages} unread message${unreadMessages === 1 ? '' : 's'}`
+                : 'Chat'
+            }
+            aria-label={
+              unreadMessages > 0
+                ? `Chat, ${unreadMessages} unread message${unreadMessages === 1 ? '' : 's'}`
+                : 'Chat'
+            }
+            className="relative w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
+          >
+            <MessageCircle size={19} />
+            {unreadMessages > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold leading-4 text-center shadow-sm shadow-primary/40">
+                {unreadMessagesLabel}
+              </span>
+            )}
+          </Link>
+
+          <ThemeToggle />
 
           {/* Upload replaced Settings here — Settings is still one click away in the
               sidebar footer and the account menu below, whereas uploading had no
@@ -165,7 +222,7 @@ export const TopBar = () => {
       <header className="lg:hidden flex h-14 items-center justify-between px-4 sticky top-0 z-30
         bg-background/70 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="flex items-center gap-2 min-w-0">
-          <MobileNavDrawer />
+          <MobileNavDrawer unreadMessages={unreadMessages} />
           <Link href="/app/for-you" className="flex items-center gap-2 min-w-0">
             <BrandMark size="sm" />
             <span className="font-bold text-foreground text-base tracking-wide truncate">
@@ -200,9 +257,41 @@ export const TopBar = () => {
             <Search size={20} />
           </button>
 
-          <Link href="/app/activity" className="text-muted-foreground hover:text-foreground transition p-1">
+          <Link
+            href="/app/activity"
+            aria-label={
+              unreadActivity > 0
+                ? `Notifications, ${unreadActivity} new notification${unreadActivity === 1 ? '' : 's'}`
+                : 'Notifications'
+            }
+            className="relative text-muted-foreground hover:text-foreground transition p-1"
+          >
             <Bell size={20} />
+            {unreadActivity > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold leading-4 text-center shadow-sm shadow-primary/40">
+                {unreadActivityLabel}
+              </span>
+            )}
           </Link>
+
+          <Link
+            href="/app/messages"
+            aria-label={
+              unreadMessages > 0
+                ? `Chat, ${unreadMessages} unread message${unreadMessages === 1 ? '' : 's'}`
+                : 'Chat'
+            }
+            className="relative text-muted-foreground hover:text-foreground transition p-1"
+          >
+            <MessageCircle size={20} />
+            {unreadMessages > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold leading-4 text-center shadow-sm shadow-primary/40">
+                {unreadMessagesLabel}
+              </span>
+            )}
+          </Link>
+
+          <ThemeToggle />
 
           {user ? (
             <div className="relative" ref={mobileRef}>

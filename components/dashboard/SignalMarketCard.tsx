@@ -12,12 +12,19 @@ export const money = (raw: string | number) => {
     : '—';
 };
 
+export const naira = (raw: string | number) => {
+  const n = Number(raw);
+  return Number.isFinite(n)
+    ? `₦${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : '—';
+};
+
 export const compact = (raw: string | number) => {
   const n = Number(raw);
   if (!Number.isFinite(n)) return '—';
-  if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
-  return money(n);
+  if (Math.abs(n) >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `₦${(n / 1_000).toFixed(1)}K`;
+  return naira(n);
 };
 
 /**
@@ -46,17 +53,17 @@ export const SignalMarketCard = ({
           <UserAvatar src={signal.creatorAvatarUrl} name={signal.creatorName} size="md" />
           <span className="min-w-0">
             <span className="block font-semibold text-card-foreground truncate">
-              {signal.creatorName}
+              {signal.title ?? `${signal.creatorName} Signal`}
             </span>
             <span className="block text-sm text-muted-foreground truncate">
-              @{signal.creatorUsername}
+              {signal.creatorName} · @{signal.creatorUsername}
             </span>
           </span>
         </Link>
 
         <div className="text-right flex-shrink-0">
           <p className="text-xs text-muted-foreground">Current Price</p>
-          <p className="text-lg font-bold text-primary">{money(signal.price)}</p>
+          <p className="text-lg font-bold text-primary">{naira(signal.price)}</p>
         </div>
       </div>
 

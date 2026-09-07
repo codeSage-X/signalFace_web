@@ -13,7 +13,7 @@ const money = (n: number) =>
   `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
- * The hero value card. Used by the investor dashboard for portfolio value and by
+ * The hero value card. Used by the ownership dashboard for portfolio value and by
  * the creator dashboard for total Signal value — same anatomy, different label,
  * so `label`/`hint` are parameterised rather than the card being duplicated.
  */

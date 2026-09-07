@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, LineChart } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/StatCard';
-import { SignalMarketCard, money } from '@/components/dashboard/SignalMarketCard';
+import { SignalMarketCard, naira } from '@/components/dashboard/SignalMarketCard';
 import { signalsApi, type SignalListItem } from '@/lib/api';
 import { useToast } from '@/lib/stores';
+import { BuySignalModal } from '@/components/trading/BuySignalModal';
 
 export default function SignalsPage() {
   const [signals, setSignals] = useState<SignalListItem[]>([]);
+  const [buyingSignal, setBuyingSignal] = useState<SignalListItem | null>(null);
   const [loading, setLoading] = useState(true);
   const { addToast } = useToast();
 
@@ -53,25 +55,28 @@ export default function SignalsPage() {
       count: signals.length,
       avg,
       holders,
-      range: low === high ? money(low) : `${money(low)} – ${money(high)}`,
+      range: low === high ? naira(low) : `${naira(low)} – ${naira(high)}`,
     };
   }, [signals]);
 
-  const handleTrade = () =>
-    addToast({ message: 'Trading is coming soon.', type: 'info', duration: 3000 });
+  const refreshSignals = () =>
+    signalsApi
+      .list()
+      .then(setSignals)
+      .catch(() => {});
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 max-w-7xl mx-auto">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Signal Explorer</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Browse all available signals and discover new investment opportunities.
+          Browse all available signals and discover new ownership opportunities.
         </p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="Total Signals" value={stats.count} />
-        <StatCard label="Avg Price" value={money(stats.avg)} />
+        <StatCard label="Avg Price" value={naira(stats.avg)} />
         <StatCard label="Total Holders" value={stats.holders.toLocaleString()} />
         <StatCard label="Price Range" value={stats.range} />
       </div>
@@ -96,11 +101,17 @@ export default function SignalsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
             {signals.map((signal) => (
-              <SignalMarketCard key={signal.id} signal={signal} onTrade={handleTrade} />
+              <SignalMarketCard key={signal.id} signal={signal} onTrade={setBuyingSignal} />
             ))}
           </div>
         )}
       </div>
+
+      <BuySignalModal
+        signal={buyingSignal}
+        onClose={() => setBuyingSignal(null)}
+        onPurchased={refreshSignals}
+      />
     </div>
   );
 }

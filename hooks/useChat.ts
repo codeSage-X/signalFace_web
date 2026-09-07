@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addDoc,
   arrayUnion,
@@ -37,6 +37,8 @@ export interface ConversationPreview {
   lastMessage: { text: string; senderId: string; timestamp: Date | null } | null;
   unreadCount: number;
 }
+
+type ConversationRow = Omit<ConversationPreview, 'unreadCount'>;
 
 /** Firestore hands back a Timestamp, or null while the server value is pending. */
 function toDate(value: unknown): Date | null {
@@ -266,13 +268,117 @@ export function useChatUnread(conversationId: string | null) {
 }
 
 /**
+ * Aggregate unread state for the whole inbox. Conversation documents only store
+ * `lastMessage`, so unread counts come from each thread's messages collection.
+ */
+export function useMessageNotifications({ silent = true }: { silent?: boolean } = {}) {
+  const me = useAuth((s) => s.user?.id) ?? null;
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const messageUnsubscribers = useRef<Record<string, () => void>>({});
+
+  useEffect(() => {
+    const stopMessageListeners = () => {
+      Object.values(messageUnsubscribers.current).forEach((unsubscribe) => unsubscribe());
+      messageUnsubscribers.current = {};
+    };
+
+    if (!me || !isChatConfigured) {
+      stopMessageListeners();
+      setCounts({});
+      return;
+    }
+
+    let unsubscribeConversations: (() => void) | undefined;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await ensureChatAuth({ silent });
+        if (cancelled) return;
+
+        unsubscribeConversations = onSnapshot(
+          query(
+            collection(chatDb(), 'conversations'),
+            where('participants', 'array-contains', me),
+          ),
+          (snapshot) => {
+            const activeIds = new Set(snapshot.docs.map((d) => d.id));
+
+            Object.entries(messageUnsubscribers.current).forEach(([id, unsubscribe]) => {
+              if (!activeIds.has(id)) {
+                unsubscribe();
+                delete messageUnsubscribers.current[id];
+                setCounts((prev) => {
+                  const next = { ...prev };
+                  delete next[id];
+                  return next;
+                });
+              }
+            });
+
+            snapshot.docs.forEach((conversationDoc) => {
+              const conversationId = conversationDoc.id;
+              if (messageUnsubscribers.current[conversationId]) return;
+
+              const messages = collection(
+                doc(chatDb(), 'conversations', conversationId),
+                'messages',
+              );
+
+              messageUnsubscribers.current[conversationId] = onSnapshot(
+                query(messages, where('senderId', '!=', me)),
+                (messagesSnapshot) => {
+                  const count = messagesSnapshot.docs.filter(
+                    (d) => !(d.data().readBy ?? []).includes(me),
+                  ).length;
+                  setCounts((prev) => ({ ...prev, [conversationId]: count }));
+                },
+                (err) => {
+                  if (!silent) logChatError(`notification listener (${conversationId})`, err);
+                  setCounts((prev) => ({ ...prev, [conversationId]: 0 }));
+                },
+              );
+            });
+          },
+          (err) => {
+            if (!silent) logChatError('notification conversations listener', err);
+            stopMessageListeners();
+            setCounts({});
+          },
+        );
+      } catch (err) {
+        if (!silent) logChatError('notification listener setup', err);
+        if (!cancelled) {
+          stopMessageListeners();
+          setCounts({});
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      unsubscribeConversations?.();
+      stopMessageListeners();
+    };
+  }, [me, silent]);
+
+  const total = useMemo(
+    () => Object.values(counts).reduce((sum, count) => sum + count, 0),
+    [counts],
+  );
+
+  return { counts, total };
+}
+
+/**
  * Every conversation the signed-in user is part of, newest activity first, for
  * the inbox. Ordering is done client-side so a thread with no messages yet still
  * appears instead of being dropped by an orderBy on a null field.
  */
 export function useConversations() {
   const me = useAuth((s) => s.user?.id) ?? null;
-  const [conversations, setConversations] = useState<ConversationPreview[]>([]);
+  const { counts: unreadCounts } = useMessageNotifications();
+  const [conversations, setConversations] = useState<ConversationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -312,7 +418,6 @@ export function useConversations() {
                       timestamp: toDate(last.timestamp),
                     }
                   : null,
-                unreadCount: 0,
               };
             });
 
@@ -345,5 +450,14 @@ export function useConversations() {
     };
   }, [me]);
 
-  return { conversations, loading, error };
+  const withUnreadCounts = useMemo(
+    () =>
+      conversations.map((conversation) => ({
+        ...conversation,
+        unreadCount: unreadCounts[conversation.id] ?? 0,
+      })),
+    [conversations, unreadCounts],
+  );
+
+  return { conversations: withUnreadCounts, loading, error };
 }

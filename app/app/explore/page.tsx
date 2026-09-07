@@ -2,12 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Heart, MessageCircle, Compass, Play } from 'lucide-react';
+import {
+  ArrowRight,
+  Compass,
+  Heart,
+  HeartHandshake,
+  HeartPulse,
+  MessageCircle,
+  Play,
+  UsersRound,
+} from 'lucide-react';
 import {
   postsApi,
   realmsApi,
   signalsApi,
   REALM_CATEGORY_LABELS,
+  realmCategoryLabel,
   type FeedPost,
   type Realm,
   type RealmCategory,
@@ -19,6 +29,31 @@ import { PostDetailModal } from '@/components/social/PostDetailModal';
 const TRENDING_POSTS = 8;
 const TOP_CREATORS = 6;
 const TRENDING_REALMS = 8;
+
+// Curated by Signal Face, these hubs are open group conversations.
+const INTEREST_GROUPS = [
+  {
+    name: 'Single Forum',
+    description: 'Meet people, swap dating stories, and talk through modern romance.',
+    id: 'single-forum',
+    icon: UsersRound,
+    tone: 'from-violet-600 to-indigo-700',
+  },
+  {
+    name: 'Marriage Advice',
+    description: 'Thoughtful conversations about partnership, trust, and communication.',
+    id: 'marriage-advice',
+    icon: HeartHandshake,
+    tone: 'from-rose-600 to-pink-700',
+  },
+  {
+    name: 'Health Solutions',
+    description: 'Share routines, encouragement, and practical wellbeing ideas.',
+    id: 'health-solutions',
+    icon: HeartPulse,
+    tone: 'from-emerald-600 to-teal-700',
+  },
+] as const;
 
 // The real `RealmCategory` enum, not a hand-written list — a chip that can't be
 // sent to the API as `?category=` is a chip that returns nothing.
@@ -281,6 +316,42 @@ export default function ExplorePage() {
         </div>
       </div>
 
+      {!filtering && (
+        <section className="mt-8">
+          <div className="mb-4">
+            <h2 className="text-lg sm:text-xl font-bold text-foreground">Interest Groups</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Communities curated by Signal Face.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {INTEREST_GROUPS.map((group) => {
+              const Icon = group.icon;
+              return (
+                <Link
+                  key={group.name}
+                  href={`/app/groups/${group.id}`}
+                  className="glass-card glass-hover rounded-xl p-4 group"
+                >
+                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${group.tone} flex items-center justify-center text-white shadow-lg`}>
+                    <Icon size={20} />
+                  </div>
+                  <h3 className="mt-4 font-bold text-card-foreground group-hover:text-primary transition">
+                    {group.name}
+                  </h3>
+                  <p className="mt-1 text-sm leading-5 text-muted-foreground line-clamp-2">
+                    {group.description}
+                  </p>
+                  <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
+                    Open group <ArrowRight size={15} />
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Posts respond to the chip, so this strip stays visible while filtering. */}
       <section className="mt-8">
         <SectionHeading
@@ -443,7 +514,7 @@ export default function ExplorePage() {
                 <div className="pt-7 px-4 pb-4 flex-1 flex flex-col">
                   <p className="font-semibold text-card-foreground truncate">{realm.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {REALM_CATEGORY_LABELS[realm.category]} ·{' '}
+                    {realmCategoryLabel(realm)} ·{' '}
                     {realm.followersCount.toLocaleString()}{' '}
                     {realm.followersCount === 1 ? 'follower' : 'followers'}
                   </p>
