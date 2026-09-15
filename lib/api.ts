@@ -384,11 +384,55 @@ export interface WalletOverview {
   change24h: number;
 }
 
+export type P2PListingStatus = 'ACTIVE' | 'FILLED' | 'CANCELED';
+
+export interface P2PListing {
+  id: string;
+  status: P2PListingStatus;
+  signalId: string;
+  signalTitle: string;
+  creatorName: string;
+  creatorUsername: string;
+  creatorAvatarUrl: string | null;
+  sellerId: string;
+  sellerName: string;
+  sellerUsername: string;
+  sellerAvatarUrl: string | null;
+  quantity: string;
+  initialQuantity: string;
+  pricePerUnit: string;
+  total: string;
+  currentSignalPrice: string;
+  spreadPct: number;
+  isMine: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface P2PPurchaseResult {
+  listingId: string;
+  buyerTradeId: string;
+  sellerTradeId: string;
+  transactionId: string;
+  sellerTransactionId: string;
+  signalId: string;
+  quantity: string;
+  pricePerUnit: string;
+  totalPoints: string;
+  balance: string;
+}
+
 export type WalletTransactionType =
   | 'DEPOSIT'
   | 'WITHDRAWAL'
+  | 'WITHDRAWAL_HOLD'
+  | 'WITHDRAWAL_COMPLETED'
+  | 'WITHDRAWAL_RELEASE'
+  | 'WITHDRAWAL_REVERSAL'
   | 'TRADE_BUY'
   | 'TRADE_SELL'
+  | 'TRANSFER_SENT'
+  | 'TRANSFER_RECEIVED'
   | 'SIGNUP_BONUS'
   | 'REFERRAL_BONUS'
   | 'ADMIN_ADJUST'
@@ -405,7 +449,84 @@ export interface WalletTransaction {
   createdAt: string;
 }
 
-export type KycStatus = 'NOT_STARTED' | 'PROCESSING' | 'VERIFIED' | 'REQUIRES_INPUT' | 'CANCELED';
+export type KycStatus =
+  | 'NOT_STARTED'
+  | 'PROCESSING'
+  | 'VERIFIED'
+  | 'REQUIRES_INPUT'
+  | 'CANCELED'
+  | 'FAILED'
+  | 'EXPIRED';
+
+export interface SupportedKycCountry {
+  countryCode: string;
+  countryName: string;
+}
+
+export interface SupportedKycDocument {
+  id: string;
+  countryCode: string;
+  providerDocumentType: string;
+  displayName: string;
+  supported: boolean;
+}
+
+export interface KycOverview {
+  kycStatus: KycStatus;
+  kycReference: string | null;
+  verification: {
+    id: string;
+    countryCode: string;
+    documentType: string | null;
+    providerDocumentType: string | null;
+    documentCountry: string | null;
+    status: string;
+    failureCode: string | null;
+    failureReason: string | null;
+    verifiedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+}
+
+export type WithdrawalDestinationType = 'BANK_ACCOUNT' | 'MOBILE_MONEY' | 'WALLET' | 'OTHER';
+export type WithdrawalDestinationStatus = 'PENDING' | 'VERIFIED' | 'FAILED';
+export type WithdrawalStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'REVERSED';
+
+export interface WithdrawalDestination {
+  id: string;
+  type: WithdrawalDestinationType;
+  countryCode: string;
+  currency: string;
+  provider: string | null;
+  accountName: string | null;
+  accountNumberLast4: string | null;
+  bankCode: string | null;
+  bankName: string | null;
+  verificationStatus: WithdrawalDestinationStatus;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Withdrawal {
+  id: string;
+  amount: string;
+  currency: string;
+  fee: string;
+  netAmount: string;
+  destinationId: string;
+  withdrawalMethod: WithdrawalDestinationType;
+  status: WithdrawalStatus;
+  provider: string | null;
+  providerReference: string | null;
+  failureCode: string | null;
+  failureReason: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  destination: WithdrawalDestination | null;
+}
 
 // ─── Rewards & referrals ──────────────────────────────────────────────────────
 
@@ -471,12 +592,50 @@ export const marketApi = {
   getOverview: () => request<MarketOverview>('/market/overview'),
 };
 
+export const p2pApi = {
+  list: (params?: { q?: string; cursor?: string | null; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set('q', params.q);
+    if (params?.cursor) qs.set('cursor', params.cursor);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    const query = qs.toString();
+    return request<Page<P2PListing>>(`/p2p/listings${query ? `?${query}` : ''}`);
+  },
+  mine: () => request<{ items: P2PListing[] }>('/p2p/listings/mine'),
+  create: (body: { signalId: string; quantity: number; pricePerUnit: number }) =>
+    request<P2PListing>('/p2p/listings', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  buy: (id: string, body: { quantity?: number }) =>
+    request<P2PPurchaseResult>(`/p2p/listings/${encodeURIComponent(id)}/buy`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  cancel: (id: string) =>
+    request<P2PListing>(`/p2p/listings/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+    }),
+};
+
 export const walletApi = {
   getMe: () => request<WalletOverview>('/wallet/me'),
   transactions: (cursor?: string | null, limit?: number) =>
     request<Page<WalletTransaction>>(`/wallet/transactions${pageQuery(cursor, limit)}`),
   deposit: (body: { amount: number; note?: string }) =>
     request<{ txRef: string; url: string | null }>('/wallet/deposit', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  send: (body: { recipient: string; amount: number; note?: string }) =>
+    request<{
+      transactionId: string;
+      recipientTransactionId: string;
+      recipient: { id: string; username: string; displayName: string };
+      amount: string;
+      amountNaira: string;
+      balance: string;
+    }>('/wallet/send', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -497,34 +656,51 @@ export const walletApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  withdraw: (body: {
-    amount: number;
-    note?: string;
-    accountBank: string;
-    accountNumber: string;
-    beneficiaryName: string;
-  }) =>
-    request<{ transactionId: string; amount: string; balance: string }>('/wallet/withdraw', {
+  kyc: () => request<KycOverview>('/kyc/me'),
+};
+
+export const kycApi = {
+  me: () => request<KycOverview>('/kyc/me'),
+  countries: () => request<SupportedKycCountry[]>('/kyc/countries'),
+  documents: (countryCode: string) =>
+    request<SupportedKycDocument[]>(`/kyc/countries/${encodeURIComponent(countryCode)}/documents`),
+  start: (body: { countryCode: string; providerDocumentType: string; documentCountry?: string }) =>
+    request<{
+      kycStatus: KycStatus;
+      kycReference: string;
+      verificationId: string;
+      verificationUrl: string;
+    }>('/kyc/start', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  kyc: () =>
-    request<{ kycStatus: KycStatus; kycReference: string | null }>('/wallet/kyc'),
-  createKycSession: () =>
-    request<{
-      kycStatus: KycStatus;
-      kycReference?: string | null;
-    }>('/wallet/kyc/session', { method: 'POST' }),
-  requestKyc: (body: {
-    legalName: string;
-    country: string;
-    idType: 'passport' | 'national_id' | 'drivers_license' | 'voter_id';
-    idLast4: string;
+};
+
+export const withdrawalsApi = {
+  destinations: () => request<{ items: WithdrawalDestination[] }>('/withdrawal-destinations'),
+  createDestination: (body: {
+    type: WithdrawalDestinationType;
+    countryCode: string;
+    currency: string;
+    provider?: string;
+    accountName?: string;
+    accountNumber?: string;
+    bankCode?: string;
+    bankName?: string;
+    metadata?: Record<string, unknown>;
+    isDefault?: boolean;
   }) =>
-    request<{
-      kycStatus: KycStatus;
-      kycReference: string | null;
-    }>('/wallet/kyc/request', {
+    request<WithdrawalDestination>('/withdrawal-destinations', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  list: () => request<{ items: Withdrawal[] }>('/withdrawals'),
+  preview: (destinationId: string, amount: number) =>
+    request<{ amount: string; fee: string; netAmount: string; currency: string }>(
+      `/withdrawals/preview?destinationId=${encodeURIComponent(destinationId)}&amount=${encodeURIComponent(String(amount))}`,
+    ),
+  create: (body: { destinationId: string; amount: number; idempotencyKey: string; note?: string }) =>
+    request<Withdrawal>('/withdrawals', {
       method: 'POST',
       body: JSON.stringify(body),
     }),

@@ -10,7 +10,7 @@ export interface RealmActivityEntry {
   text: string;
   username: string;
   avatarUrl: string | null;
-  /** Pre-signed, e.g. `+ 25.60 SF`. Null for events with no amount. */
+  /** Pre-signed, e.g. `+ 25.60 SC`. Null for events with no amount. */
   amount: string | null;
   at: string;
 }

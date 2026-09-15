@@ -18,7 +18,7 @@ export const StatTile = ({
 }: {
   label: string;
   value: string;
-  /** Rendered small and magenta before the value, e.g. the `SF` unit. */
+  /** Rendered small and magenta before the value, e.g. the `SC` unit. */
   valuePrefix?: string;
   sub?: string;
   tone?: 'neutral' | 'up' | 'down';

@@ -11,7 +11,7 @@ export interface ActivityEntry {
   kind: ActivityKind;
   text: string;
   time: string;
-  /** Pre-formatted, sign included — e.g. `− $25.00`, `+ 15.50 SF`. */
+  /** Pre-formatted, sign included — e.g. `− $25.00`, `+ 15.50 SC`. */
   amount: string;
   tone: 'up' | 'down';
 }

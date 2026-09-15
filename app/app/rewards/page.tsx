@@ -17,11 +17,15 @@ import {
   type ReferralSummary,
   type RewardItem,
 } from '@/lib/api';
-import { inviteLink as buildInviteLink } from '@/lib/utils';
+import {
+  formatSignalFaceCoins,
+  inviteLink as buildInviteLink,
+  nairaToSignalFaceCoins,
+} from '@/lib/utils';
 import { useAuth, useToast } from '@/lib/stores';
 
-const fmtPoints = (value: string | number) =>
-  Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 });
+const fmtCoins = (value: string | number) =>
+  formatSignalFaceCoins(nairaToSignalFaceCoins(value));
 
 /** "in 3h" / "in 12m" — how long until a cooldown lifts. */
 function untilReady(iso: string) {
@@ -79,7 +83,7 @@ export default function RewardsPage() {
       // header updates without a refetch.
       updateUser({ pointsBalance: res.balance });
       addToast({
-        message: `Claimed ${fmtPoints(res.amount)} SF!`,
+        message: `Claimed ${fmtCoins(res.amount)}!`,
         type: 'success',
         duration: 4000,
       });
@@ -161,7 +165,7 @@ export default function RewardsPage() {
         <StatCard
           icon={<Wallet size={16} />}
           label="Earned from referrals"
-          value={loading ? '—' : `${fmtPoints(referrals?.totalEarned ?? 0)} SF`}
+          value={loading ? '—' : fmtCoins(referrals?.totalEarned ?? 0)}
         />
         <StatCard
           icon={<UsersIcon size={16} />}
@@ -180,7 +184,7 @@ export default function RewardsPage() {
         <h2 id="invite-friends-title" className="font-bold text-foreground">Invite friends</h2>
         <p className="text-sm text-muted-foreground mt-1">
           {referrals?.bonusAmount
-            ? `You earn ${fmtPoints(referrals.bonusAmount)} SF each time someone you invite verifies their account.`
+            ? `You earn ${fmtCoins(referrals.bonusAmount)} each time someone you invite verifies their account.`
             : 'Share your link so friends can join with your code.'}
         </p>
 
@@ -291,9 +295,7 @@ export default function RewardsPage() {
                     <p className="text-sm text-muted-foreground mt-0.5">{reward.description}</p>
                   )}
                   <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
-                    <span className="font-semibold text-primary">
-                      +{fmtPoints(reward.amount)} SF
-                    </span>
+                    <span className="font-semibold text-primary">+{fmtCoins(reward.amount)}</span>
                     {reward.type === 'RECURRING' && reward.cooldownHours && (
                       <>
                         <span>·</span>

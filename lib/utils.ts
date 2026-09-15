@@ -5,6 +5,28 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export const SIGNALFACE_COIN_NAIRA = 500;
+
+export function nairaToSignalFaceCoins(value: string | number): number {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount / SIGNALFACE_COIN_NAIRA : 0;
+}
+
+export function signalFaceCoinsToNaira(value: string | number): number {
+  const coins = Number(value);
+  return Number.isFinite(coins) ? coins * SIGNALFACE_COIN_NAIRA : 0;
+}
+
+export function formatSignalFaceCoins(value: string | number): string {
+  const coins = Number(value);
+  const safeCoins = Number.isFinite(coins) ? coins : 0;
+  const formatted = safeCoins.toLocaleString(undefined, {
+    minimumFractionDigits: safeCoins % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 4,
+  });
+  return `${formatted} SC`;
+}
+
 /**
  * The app's public address, for links meant to be sent to other people.
  *

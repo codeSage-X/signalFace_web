@@ -5,6 +5,7 @@ import NextLink from 'next/link';
 import { BarChart3, DollarSign, Gift, Sparkles, Users } from 'lucide-react';
 import { realmsApi, type CreatorDashboard, type DashboardRange } from '@/lib/api';
 import { useProfileMode } from '@/lib/stores';
+import { formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
 import { useProfileSwitch } from '@/hooks/useCreatorProfile';
 import { DASH } from '@/components/dashboard/theme';
 import { PortfolioValueCard, type Range } from '@/components/dashboard/PortfolioValueCard';
@@ -229,12 +230,11 @@ export default function CreatorDashboardPage() {
           />
           <StatTile
             label="Rewards Earned"
-            value={Number(totals.rewards).toLocaleString(undefined, {
+            value={formatSignalFaceCoins(nairaToSignalFaceCoins(totals.rewards))}
+            sub={`₦${Number(totals.rewards).toLocaleString(undefined, {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
-            })}
-            valuePrefix="SF"
-            sub="Credited to your wallet"
+            })} equivalent`}
             icon={Gift}
           />
         </div>

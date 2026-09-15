@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useAuth, useToast } from '@/lib/stores';
 import { useEffect, useState } from 'react';
 import { Bell, Lock, User, LogOut, Pencil, Check, X, Loader2, Sparkles } from 'lucide-react';
@@ -8,6 +9,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPalette, faCog, faSignOut } from '@fortawesome/free-solid-svg-icons';
 import { usersApi, ApiError, type RealmCategory } from '@/lib/api';
 import { InterestPicker } from '@/components/social/InterestPicker';
+import { formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
 
 export default function SettingsPage() {
   const { user, logout, updateUser } = useAuth();
@@ -137,8 +139,10 @@ export default function SettingsPage() {
               />
             </div>
             <div>
-              <label className="text-sm text-muted-foreground">Points Balance</label>
-              <p className="text-foreground mt-1">{user?.pointsBalance ?? '0'} pts</p>
+              <label className="text-sm text-muted-foreground">Signal Credit</label>
+              <p className="text-foreground mt-1">
+                {formatSignalFaceCoins(nairaToSignalFaceCoins(user?.pointsBalance ?? 0))}
+              </p>
             </div>
             <div className="flex items-center gap-2 pt-2">
               <button
@@ -176,8 +180,10 @@ export default function SettingsPage() {
               <p className="text-foreground mt-1">{user?.displayName || '—'}</p>
             </div>
             <div>
-              <label className="text-sm text-muted-foreground">Points Balance</label>
-              <p className="text-foreground mt-1">{user?.pointsBalance ?? '0'} pts</p>
+              <label className="text-sm text-muted-foreground">Signal Credit</label>
+              <p className="text-foreground mt-1">
+                {formatSignalFaceCoins(nairaToSignalFaceCoins(user?.pointsBalance ?? 0))}
+              </p>
             </div>
           </div>
         )}
@@ -217,6 +223,33 @@ export default function SettingsPage() {
             </button>
           </div>
         )}
+      </div>
+
+      {/* Legal */}
+      <div className="glass-card rounded-2xl p-6">
+        <h2 className="text-lg font-bold text-foreground mb-2 flex items-center gap-2">
+          <Lock size={20} />
+          Legal
+        </h2>
+        <p className="text-sm text-muted-foreground mb-5">
+          Review the terms that govern SignalFace and how your information is handled.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Link
+            href="/terms"
+            className="glass-tile rounded-xl p-4 transition hover:brightness-125"
+          >
+            <p className="font-semibold text-foreground">Terms and Conditions</p>
+            <p className="mt-1 text-xs text-muted-foreground">Platform rules and user terms</p>
+          </Link>
+          <Link
+            href="/privacy"
+            className="glass-tile rounded-xl p-4 transition hover:brightness-125"
+          >
+            <p className="font-semibold text-foreground">Privacy Policy</p>
+            <p className="mt-1 text-xs text-muted-foreground">Data collection and privacy rights</p>
+          </Link>
+        </div>
       </div>
 
       {/* Appearance Settings */}

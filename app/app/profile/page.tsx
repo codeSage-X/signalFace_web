@@ -48,7 +48,12 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { externalHref, displayUrl } from '@/lib/utils';
+import {
+  displayUrl,
+  externalHref,
+  formatSignalFaceCoins,
+  nairaToSignalFaceCoins,
+} from '@/lib/utils';
 import { FollowersFollowingModal } from '@/components/social/FollowersFollowingModal';
 import { naira } from '@/components/dashboard/SignalMarketCard';
 
@@ -107,6 +112,8 @@ const PROFILE_TXN_LABELS: Record<WalletTransactionType, string> = {
   WITHDRAWAL: 'Withdrawal',
   TRADE_BUY: 'Signal purchase',
   TRADE_SELL: 'Signal sale',
+  TRANSFER_SENT: 'SC sent',
+  TRANSFER_RECEIVED: 'SC received',
   SIGNUP_BONUS: 'Signup reward',
   REFERRAL_BONUS: 'Referral reward',
   ADMIN_ADJUST: 'Wallet adjustment',
@@ -1010,7 +1017,8 @@ function ProfilePortfolioTransparency({
   loading: boolean;
 }) {
   const holdings = wallet?.holdings ?? [];
-  const balance = Number(wallet?.pointsBalance ?? 0);
+  const balanceNaira = Number(wallet?.pointsBalance ?? 0);
+  const balanceCoins = nairaToSignalFaceCoins(balanceNaira);
   const change = wallet?.change24h ?? 0;
 
   if (loading) {
@@ -1046,12 +1054,9 @@ function ProfilePortfolioTransparency({
         <div className="glass-card rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">Available to Trade</p>
           <p className="mt-2 text-xl font-bold text-foreground">
-            ₦
-            {balance.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+            {formatSignalFaceCoins(balanceCoins)}
           </p>
+          <p className="mt-1 text-xs text-muted-foreground">{naira(balanceNaira)} equivalent</p>
         </div>
       </div>
 

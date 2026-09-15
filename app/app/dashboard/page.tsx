@@ -13,6 +13,7 @@ import {
   type WalletOverview,
 } from '@/lib/api';
 import { syntheticSeries } from '@/lib/series';
+import { formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
 import { DASH } from '@/components/dashboard/theme';
 import { PortfolioValueCard, type Range } from '@/components/dashboard/PortfolioValueCard';
 import { StatTile } from '@/components/dashboard/StatTile';
@@ -112,7 +113,7 @@ export default function DashboardPage() {
       shares,
       pnl,
       pnlPct: ownershipCost > 0 ? (pnl / ownershipCost) * 100 : 0,
-      rewards: Number(wallet?.pointsBalance ?? 0),
+      availableNaira: Number(wallet?.pointsBalance ?? 0),
       changePct: wallet?.change24h ?? 0,
     };
   }, [wallet, holdings]);
@@ -217,9 +218,8 @@ export default function DashboardPage() {
           />
           <StatTile
             label="Available to Trade"
-            value={totals.rewards.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            valuePrefix="SF"
-            sub="SignalFace balance"
+            value={formatSignalFaceCoins(nairaToSignalFaceCoins(totals.availableNaira))}
+            sub={`${naira(totals.availableNaira)} equivalent`}
             icon={Wallet}
           />
         </div>

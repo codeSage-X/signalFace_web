@@ -5,6 +5,7 @@ import { Loader2, Wallet, X, Zap } from 'lucide-react';
 import { naira } from '@/components/dashboard/SignalMarketCard';
 import { signalsApi, type SignalListItem } from '@/lib/api';
 import { useAuth, useToast } from '@/lib/stores';
+import { formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
 
 interface BuySignalModalProps {
   signal: SignalListItem | null;
@@ -117,6 +118,9 @@ export function BuySignalModal({ signal, onClose, onPurchased }: BuySignalModalP
           <p className="text-xs text-muted-foreground">
             {quantity || '0'} x {naira(signal.price)} = {naira(total)}
           </p>
+          <p className="text-xs text-muted-foreground">
+            Wallet cost: {formatSignalFaceCoins(nairaToSignalFaceCoins(total))}
+          </p>
 
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -156,7 +160,7 @@ export function BuySignalModal({ signal, onClose, onPurchased }: BuySignalModalP
               ? 'Processing...'
               : paymentMethod === 'flutterwave'
                 ? 'Pay with Flutterwave'
-                : 'Buy with Wallet'}
+                : 'Buy with SC'}
           </button>
         </form>
       </div>

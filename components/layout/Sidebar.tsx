@@ -7,6 +7,7 @@ import { Search } from 'lucide-react';
 import { BrandMark } from '@/components/BrandMark';
 import { useAuth } from '@/lib/stores';
 import { walletApi } from '@/lib/api';
+import { formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChartLine,
@@ -22,6 +23,12 @@ import {
   faGear,
   faSignOut,
 } from '@fortawesome/free-solid-svg-icons';
+
+const naira = (value: number) =>
+  `₦${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 // Dashboard is deliberately absent — it's reached from the profile page instead,
 // and Upload lives in the top bar's action pill rather than the nav list.
@@ -165,17 +172,13 @@ export const Sidebar = ({ unreadMessages = 0 }: { unreadMessages?: number }) => 
           <div className="pt-3 space-y-3">
             {/* Signal balance */}
             <div className="glass-card rounded-2xl p-4">
-              <p className="text-xs text-white/55">SignalBalance</p>
-              <p className="mt-1 text-lg font-bold text-white">
-                <span className="text-primary">SF</span>{' '}
-                {balance === null
-                  ? '—'
-                  : balance.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+              <p className="text-xs text-white/55">Signal Credit</p>
+              <p className="mt-1 text-xl font-bold text-white">
+                {balance === null ? '—' : formatSignalFaceCoins(nairaToSignalFaceCoins(balance))}
               </p>
-              <p className="text-xs text-white/40">Available to trade</p>
+              <p className="text-xs text-white/40">
+                {balance === null ? 'Available to trade' : `${naira(balance)} equivalent`}
+              </p>
               <button
                 onClick={() => router.push('/app/portfolio#deposit')}
                 className="mt-3 w-full brand-gradient text-white text-sm font-semibold py-2 rounded-xl

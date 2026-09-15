@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -632,6 +633,18 @@ export const AuthGateModal = () => {
                 placeholder="Confirm password"
                 error={signupForm.formState.errors.confirmPassword?.message}
               />
+
+              <p className="text-center text-xs leading-5 text-muted-foreground">
+                By creating an account, you agree to SignalFace&apos;s{' '}
+                <Link href="/terms" className="font-semibold text-primary hover:underline">
+                  Terms
+                </Link>{' '}
+                and{' '}
+                <Link href="/privacy" className="font-semibold text-primary hover:underline">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
 
               <SubmitButton isLoading={isLoading} label="Create Account" />
             </form>

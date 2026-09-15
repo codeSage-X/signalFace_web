@@ -1,17 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  ArrowDownToLine,
-  ArrowUpFromLine,
   Briefcase,
   Clock3,
+  Copy,
   History,
   Loader2,
   Minus,
   ReceiptText,
+  Send,
   ShieldCheck,
   TrendingDown,
   TrendingUp,
@@ -19,25 +19,40 @@ import {
 } from 'lucide-react';
 import {
   activityApi,
+  kycApi,
   walletApi,
+  withdrawalsApi,
   type ActivityItem,
   type KycStatus,
+  type SupportedKycCountry,
+  type SupportedKycDocument,
   type WalletOverview,
   type WalletTransaction,
   type WalletTransactionType,
+  type Withdrawal,
+  type WithdrawalDestination,
 } from '@/lib/api';
 import { useAuth, useToast } from '@/lib/stores';
+import {
+  nairaToSignalFaceCoins,
+  signalFaceCoinsToNaira,
+} from '@/lib/utils';
 import { UserAvatar } from '@/components/UserAvatar';
 import { naira } from '@/components/dashboard/SignalMarketCard';
 
 const PAGE_SIZE = 20;
-type KycIdType = 'passport' | 'national_id' | 'drivers_license' | 'voter_id';
 
 const transactionLabel: Record<WalletTransactionType, string> = {
   DEPOSIT: 'Deposit',
   WITHDRAWAL: 'Withdrawal',
+  WITHDRAWAL_HOLD: 'Withdrawal hold',
+  WITHDRAWAL_COMPLETED: 'Withdrawal completed',
+  WITHDRAWAL_RELEASE: 'Withdrawal released',
+  WITHDRAWAL_REVERSAL: 'Withdrawal reversed',
   TRADE_BUY: 'Signal purchase',
   TRADE_SELL: 'Signal sale',
+  TRANSFER_SENT: 'SC sent',
+  TRANSFER_RECEIVED: 'SC received',
   SIGNUP_BONUS: 'Signup reward',
   REFERRAL_BONUS: 'Referral reward',
   ADMIN_ADJUST: 'Wallet adjustment',
@@ -50,7 +65,16 @@ const kycLabel: Record<KycStatus, string> = {
   VERIFIED: 'KYC verified',
   REQUIRES_INPUT: 'KYC needs attention',
   CANCELED: 'KYC canceled',
+  FAILED: 'KYC failed',
+  EXPIRED: 'KYC expired',
 };
+
+const transferModeLabel = {
+  deposit: 'Deposit',
+  withdraw: 'Withdraw',
+  send: 'Send',
+  receive: 'Receive',
+} as const;
 
 function signedNaira(raw: string | number) {
   const amount = Number(raw);
@@ -89,12 +113,14 @@ function PortfolioStat({
   sub,
   icon: Icon,
   tone = 'neutral',
+  valueClassName = 'text-2xl lg:text-3xl',
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   sub?: string;
   icon: typeof Briefcase;
   tone?: 'up' | 'down' | 'neutral';
+  valueClassName?: string;
 }) {
   return (
     <div className="glass-card rounded-2xl p-5 lg:p-6 min-h-32">
@@ -114,7 +140,7 @@ function PortfolioStat({
         </span>
       </div>
       <p
-        className={`mt-4 text-2xl lg:text-3xl font-bold ${
+        className={`mt-4 ${valueClassName} font-bold ${
           tone === 'up' ? 'text-up' : tone === 'down' ? 'text-down' : 'text-foreground'
         }`}
       >
@@ -125,12 +151,31 @@ function PortfolioStat({
   );
 }
 
-export default function PortfolioPage() {
-  const { isAuthenticated, setAuthModalOpen } = useAuth();
+function SignalFaceCoinsValue({
+  amount,
+  unitClassName = 'text-[0.5em]',
+}: {
+  amount: number;
+  unitClassName?: string;
+}) {
+  return (
+    <>
+      {amount.toLocaleString(undefined, {
+        minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+        maximumFractionDigits: 4,
+      })}{' '}
+      <span className={unitClassName}>SC</span>
+    </>
+  );
+}
+
+function PortfolioPageInner() {
+  const { user, isAuthenticated, setAuthModalOpen } = useAuth();
   const { addToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const verifiedFlutterwaveRef = useRef<string | null>(null);
+  const handledSmileReturnRef = useRef<string | null>(null);
   const [wallet, setWallet] = useState<WalletOverview | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [transactionCursor, setTransactionCursor] = useState<string | null>(null);
@@ -138,25 +183,43 @@ export default function PortfolioPage() {
   const [kycStatus, setKycStatus] = useState<KycStatus>('NOT_STARTED');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [mode, setMode] = useState<'deposit' | 'withdraw'>('deposit');
+  const [mode, setMode] = useState<'deposit' | 'withdraw' | 'send' | 'receive'>('deposit');
+  const [portfolioTab, setPortfolioTab] = useState<'holdings' | 'balance'>('holdings');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [recipient, setRecipient] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [startingKyc, setStartingKyc] = useState(false);
-  const [legalName, setLegalName] = useState('');
-  const [country, setCountry] = useState('US');
-  const [idType, setIdType] = useState<KycIdType>('passport');
-  const [idLast4, setIdLast4] = useState('');
+  const [kycCountries, setKycCountries] = useState<SupportedKycCountry[]>([]);
+  const [kycDocuments, setKycDocuments] = useState<SupportedKycDocument[]>([]);
+  const [country, setCountry] = useState('NG');
+  const [providerDocumentType, setProviderDocumentType] = useState('');
+  const [destinations, setDestinations] = useState<WithdrawalDestination[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [destinationId, setDestinationId] = useState('');
+  const [destinationCountry, setDestinationCountry] = useState('NG');
+  const [destinationCurrency, setDestinationCurrency] = useState('NGN');
   const [accountBank, setAccountBank] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [beneficiaryName, setBeneficiaryName] = useState('');
 
   const loadPortfolio = async () => {
-    const [walletResult, transactionsResult, activityResult, kycResult] = await Promise.allSettled([
+    const [
+      walletResult,
+      transactionsResult,
+      activityResult,
+      kycResult,
+      countriesResult,
+      destinationsResult,
+      withdrawalsResult,
+    ] = await Promise.allSettled([
       walletApi.getMe(),
       walletApi.transactions(null, PAGE_SIZE),
       activityApi.list(null, 8),
       walletApi.kyc(),
+      kycApi.countries(),
+      withdrawalsApi.destinations(),
+      withdrawalsApi.list(),
     ]);
 
     if (walletResult.status === 'fulfilled') setWallet(walletResult.value);
@@ -166,6 +229,12 @@ export default function PortfolioPage() {
     }
     if (activityResult.status === 'fulfilled') setActivity(activityResult.value.items);
     if (kycResult.status === 'fulfilled') setKycStatus(kycResult.value.kycStatus);
+    if (countriesResult.status === 'fulfilled') setKycCountries(countriesResult.value);
+    if (destinationsResult.status === 'fulfilled') {
+      setDestinations(destinationsResult.value.items);
+      setDestinationId((current) => current || destinationsResult.value.items[0]?.id || '');
+    }
+    if (withdrawalsResult.status === 'fulfilled') setWithdrawals(withdrawalsResult.value.items);
 
     if (walletResult.status === 'rejected') {
       throw walletResult.reason;
@@ -249,16 +318,101 @@ export default function PortfolioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, router, searchParams]);
 
+  useEffect(() => {
+    if (!isAuthenticated || searchParams.get('kyc') !== 'smile-id') return;
+
+    const smileStatus = searchParams.get('status') ?? 'returned';
+    const returnKey = `${smileStatus}:${searchParams.get('user_id') ?? ''}`;
+    if (handledSmileReturnRef.current === returnKey) return;
+    handledSmileReturnRef.current = returnKey;
+
+    kycApi
+      .me()
+      .then((result) => {
+        setKycStatus(result.kycStatus);
+        if (result.kycStatus === 'VERIFIED') {
+          addToast({
+            message: 'Identity verification passed. You can now withdraw.',
+            type: 'success',
+            duration: 5000,
+          });
+        } else if (result.kycStatus === 'FAILED' || smileStatus === 'fail') {
+          addToast({
+            message: "We couldn't verify your identity. Withdrawals are still locked.",
+            type: 'error',
+            duration: 6000,
+          });
+        } else if (result.kycStatus === 'CANCELED' || smileStatus === 'cancelled') {
+          addToast({
+            message: 'Identity verification was cancelled. Complete KYC to withdraw.',
+            type: 'info',
+            duration: 5000,
+          });
+        } else {
+          addToast({
+            message: 'Identity verification is being reviewed. Withdrawals unlock after approval.',
+            type: 'info',
+            duration: 5000,
+          });
+        }
+        return loadPortfolio();
+      })
+      .catch((err) => {
+        addToast({
+          message: err instanceof Error ? err.message : 'Could not refresh KYC status.',
+          type: 'error',
+          duration: 5000,
+        });
+      })
+      .finally(() => {
+        router.replace('/app/portfolio', { scroll: false });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addToast, isAuthenticated, router, searchParams]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !country) return;
+    let cancelled = false;
+    kycApi
+      .documents(country)
+      .then((items) => {
+        if (cancelled) return;
+        setKycDocuments(items);
+        setProviderDocumentType((current) =>
+          items.some((item) => item.providerDocumentType === current)
+            ? current
+            : items[0]?.providerDocumentType || '',
+        );
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setKycDocuments([]);
+        setProviderDocumentType('');
+        addToast({
+          message: err instanceof Error ? err.message : 'Could not load Smile ID document options.',
+          type: 'error',
+          duration: 4000,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [addToast, country, isAuthenticated]);
+
   const holdings = wallet?.holdings ?? [];
   const change = wallet?.change24h ?? 0;
   const totalShares = useMemo(
     () => holdings.reduce((sum, h) => sum + Number(h.quantity), 0),
     [holdings],
   );
-  const available = Number(wallet?.pointsBalance ?? 0);
+  const availableNaira = Number(wallet?.pointsBalance ?? 0);
+  const availableCoins = nairaToSignalFaceCoins(availableNaira);
+  const ownedSignalValue = Number(wallet?.totalValue ?? 0);
+  const portfolioBalance = ownedSignalValue + availableNaira;
   const rising = change > 0;
   const falling = change < 0;
   const ChangeIcon = rising ? TrendingUp : falling ? TrendingDown : Minus;
+  const walletHandle = user?.username ? `@${user.username}` : '';
 
   const handleTransfer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -268,37 +422,64 @@ export default function PortfolioPage() {
       return;
     }
 
+    const ledgerAmount = parsed;
+
     setSubmitting(true);
     try {
       if (mode === 'deposit') {
-        const checkout = await walletApi.deposit({ amount: parsed, note });
+        const checkout = await walletApi.deposit({ amount: ledgerAmount, note });
         if (checkout.url) {
           window.location.assign(checkout.url);
           return;
         }
         throw new Error('Flutterwave did not return a payment link.');
-      } else {
-        if (!accountBank.trim() || !accountNumber.trim() || !beneficiaryName.trim()) {
+      } else if (mode === 'send') {
+        if (!recipient.trim()) {
           addToast({
-            message: 'Enter bank code, account number, and beneficiary name.',
+            message: 'Enter the recipient username.',
             type: 'error',
             duration: 4000,
           });
           return;
         }
-        await walletApi.withdraw({
-          amount: parsed,
+        await walletApi.send({ recipient: recipient.trim(), amount: parsed, note });
+      } else {
+        let selectedDestinationId = destinationId;
+        if (!selectedDestinationId) {
+          if (!accountBank.trim() || !accountNumber.trim() || !beneficiaryName.trim()) {
+            addToast({
+              message: 'Enter destination details or select a saved destination.',
+              type: 'error',
+              duration: 4000,
+            });
+            return;
+          }
+          const destination = await withdrawalsApi.createDestination({
+            type: 'BANK_ACCOUNT',
+            countryCode: destinationCountry.trim().toUpperCase(),
+            currency: destinationCurrency.trim().toUpperCase(),
+            accountName: beneficiaryName.trim(),
+            accountNumber: accountNumber.trim(),
+            bankCode: accountBank.trim(),
+            bankName: accountBank.trim(),
+            isDefault: true,
+          });
+          selectedDestinationId = destination.id;
+          setDestinationId(destination.id);
+        }
+        await withdrawalsApi.create({
+          amount: ledgerAmount,
           note,
-          accountBank: accountBank.trim(),
-          accountNumber: accountNumber.trim(),
-          beneficiaryName: beneficiaryName.trim(),
+          destinationId: selectedDestinationId,
+          idempotencyKey: crypto.randomUUID(),
         });
       }
       setAmount('');
       setNote('');
+      setRecipient('');
       await loadPortfolio();
       addToast({
-        message: 'Withdrawal recorded.',
+        message: mode === 'send' ? 'SC sent.' : 'Withdrawal recorded.',
         type: 'success',
       });
     } catch (err) {
@@ -312,10 +493,20 @@ export default function PortfolioPage() {
     }
   };
 
+  const copyWalletHandle = async () => {
+    if (!walletHandle) return;
+    try {
+      await navigator.clipboard.writeText(walletHandle);
+      addToast({ message: 'Wallet handle copied.', type: 'success', duration: 2500 });
+    } catch {
+      addToast({ message: 'Could not copy wallet handle.', type: 'error', duration: 3000 });
+    }
+  };
+
   const beginKyc = async () => {
-    if (!legalName.trim() || country.trim().length !== 2 || idLast4.trim().length !== 4) {
+    if (country.trim().length !== 2 || !providerDocumentType) {
       addToast({
-        message: 'Enter legal name, 2-letter country code, and the last 4 ID digits.',
+        message: 'Select your country and identity document.',
         type: 'error',
         duration: 4000,
       });
@@ -324,14 +515,13 @@ export default function PortfolioPage() {
 
     setStartingKyc(true);
     try {
-      const review = await walletApi.requestKyc({
-        legalName,
-        country: country.trim().toUpperCase(),
-        idType,
-        idLast4: idLast4.trim(),
+      const review = await kycApi.start({
+        countryCode: country.trim().toUpperCase(),
+        documentCountry: country.trim().toUpperCase(),
+        providerDocumentType,
       });
       setKycStatus(review.kycStatus);
-      addToast({ message: 'KYC submitted for withdrawal review.', type: 'success', duration: 5000 });
+      window.location.assign(review.verificationUrl);
       await loadPortfolio();
     } catch (err) {
       addToast({
@@ -413,217 +603,405 @@ export default function PortfolioPage() {
             />
             <PortfolioStat
               label="Available to Trade"
-              value={`₦${available.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}`}
-              sub="SignalFace balance"
+              value={<SignalFaceCoinsValue amount={availableCoins} />}
+              sub={`${naira(availableNaira)} equivalent`}
               icon={Wallet}
+              valueClassName="text-2xl lg:text-[1.45rem] leading-tight"
             />
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_0.85fr] gap-4 lg:gap-5">
             <section id="deposit" className="glass-card rounded-2xl p-5 lg:p-6 scroll-mt-6">
-              <h2 className="text-lg font-bold text-foreground mb-4">Holdings</h2>
-
-              {holdings.length === 0 ? (
-                <div className="text-center py-12">
-                  <Briefcase size={26} className="mx-auto text-muted-foreground" />
-                  <p className="mt-3 text-muted-foreground">No signals in your portfolio yet.</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Start owning signals to see your holdings here.
-                  </p>
-                  <Link
-                    href="/app/market"
-                    className="inline-block mt-5 px-5 py-2.5 rounded-xl brand-gradient text-white text-sm font-semibold hover:brightness-110 transition"
+              <div
+                className="relative grid grid-cols-2 mb-5 overflow-hidden border-b border-white/10 bg-white/[0.03] shadow-lg shadow-black/20"
+                role="tablist"
+                aria-label="Portfolio view"
+              >
+                <span
+                  aria-hidden
+                  className={`absolute inset-y-0 left-0 w-1/2 bg-primary/10 transition-transform duration-300 ease-out ${
+                    portfolioTab === 'balance' ? 'translate-x-full' : 'translate-x-0'
+                  }`}
+                />
+                <span
+                  aria-hidden
+                  className={`absolute bottom-0 left-0 h-0.5 w-1/2 bg-primary transition-transform duration-300 ease-out ${
+                    portfolioTab === 'balance' ? 'translate-x-full' : 'translate-x-0'
+                  }`}
+                />
+                {(['holdings', 'balance'] as const).map((nextTab) => (
+                  <button
+                    key={nextTab}
+                    type="button"
+                    role="tab"
+                    aria-selected={portfolioTab === nextTab}
+                    aria-controls="portfolio-view-panel"
+                    onClick={() => setPortfolioTab(nextTab)}
+                    className={`relative z-10 flex items-center justify-center px-3 py-4 text-sm font-semibold uppercase tracking-wide transition-colors ${
+                      portfolioTab === nextTab
+                        ? 'text-primary'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
                   >
-                    Browse the market
-                  </Link>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {holdings.map((h) => {
-                    const spent = Number(h.avgBuyPrice) * Number(h.quantity);
-                    const value = Number(h.currentValue);
-                    const pl = spent > 0 ? ((value - spent) / spent) * 100 : 0;
+                    {nextTab === 'holdings' ? 'Holdings' : 'Balance'}
+                  </button>
+                ))}
+              </div>
 
-                    return (
-                      <div
-                        key={h.signalId}
-                        className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 glass-tile rounded-xl"
-                      >
-                        <Link href={`/app/u/${h.creatorUsername}`} className="flex-shrink-0">
-                          <UserAvatar name={h.creatorName} size="sm" />
-                        </Link>
+              <div id="portfolio-view-panel" role="tabpanel">
+                {portfolioTab === 'balance' ? (
+                  <div className="space-y-4">
+                    <div className="py-3">
+                      <p className="text-sm text-muted-foreground">Portfolio Balance</p>
+                      <p className="mt-2 text-3xl lg:text-4xl font-bold text-foreground">
+                        {naira(portfolioBalance)}
+                      </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Owned Signal value plus your available Signal Credit balance.
+                      </p>
+                    </div>
 
-                        <Link href={`/app/u/${h.creatorUsername}`} className="flex-1 min-w-0">
-                          <p className="font-semibold text-foreground truncate">{h.creatorName}</p>
-                          <p className="text-xs text-muted-foreground truncate">
-                            {Number(h.quantity).toLocaleString(undefined, {
-                              maximumFractionDigits: 4,
-                            })}{' '}
-                            shares @ {naira(h.avgBuyPrice)} avg
-                          </p>
-                        </Link>
-
-                        <div className="text-right flex-shrink-0">
-                          <p className="font-semibold text-foreground">{naira(h.currentValue)}</p>
-                          <p
-                            className={`text-sm ${
-                              pl > 0 ? 'text-up' : pl < 0 ? 'text-down' : 'text-muted-foreground'
-                            }`}
-                          >
-                            {pl > 0 ? '+' : ''}
-                            {pl.toFixed(2)}%
-                          </p>
-                        </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="glass-tile rounded-xl p-4">
+                        <p className="text-xs text-muted-foreground">Owned Signal Value</p>
+                        <p className="mt-2 text-xl font-bold text-foreground">
+                          {naira(ownedSignalValue)}
+                        </p>
+                        <p
+                          className={`mt-1 text-xs ${
+                            rising ? 'text-up' : falling ? 'text-down' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {rising ? '+' : ''}
+                          {change.toFixed(2)}% in 24h
+                        </p>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+
+                      <div className="glass-tile rounded-xl p-4">
+                        <p className="text-xs text-muted-foreground">Signal Credit</p>
+                        <p className="mt-2 text-lg lg:text-xl font-bold text-foreground">
+                          <SignalFaceCoinsValue
+                            amount={availableCoins}
+                            unitClassName="text-[0.58em]"
+                          />
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {naira(availableNaira)} equivalent
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 text-xs text-muted-foreground leading-relaxed">
+                      Portfolio Balance can move as creator Signals rise or fall. Signal Credit
+                      only change when you deposit, withdraw, send, receive, or trade.
+                    </div>
+                  </div>
+                ) : holdings.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Briefcase size={26} className="mx-auto text-muted-foreground" />
+                    <p className="mt-3 text-muted-foreground">No signals in your portfolio yet.</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Start owning signals to see your holdings here.
+                    </p>
+                    <Link
+                      href="/app/market"
+                      className="inline-block mt-5 px-5 py-2.5 rounded-xl brand-gradient text-white text-sm font-semibold hover:brightness-110 transition"
+                    >
+                      Browse the market
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {holdings.map((h) => {
+                      const spent = Number(h.avgBuyPrice) * Number(h.quantity);
+                      const value = Number(h.currentValue);
+                      const pl = spent > 0 ? ((value - spent) / spent) * 100 : 0;
+
+                      return (
+                        <div
+                          key={h.signalId}
+                          className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 glass-tile rounded-xl"
+                        >
+                          <Link href={`/app/u/${h.creatorUsername}`} className="flex-shrink-0">
+                            <UserAvatar name={h.creatorName} size="sm" />
+                          </Link>
+
+                          <Link href={`/app/u/${h.creatorUsername}`} className="flex-1 min-w-0">
+                            <p className="font-semibold text-foreground truncate">{h.creatorName}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {Number(h.quantity).toLocaleString(undefined, {
+                                maximumFractionDigits: 4,
+                              })}{' '}
+                              shares @ {naira(h.avgBuyPrice)} avg
+                            </p>
+                          </Link>
+
+                          <div className="text-right flex-shrink-0">
+                            <p className="font-semibold text-foreground">{naira(h.currentValue)}</p>
+                            <p
+                              className={`text-sm ${
+                                pl > 0 ? 'text-up' : pl < 0 ? 'text-down' : 'text-muted-foreground'
+                              }`}
+                            >
+                              {pl > 0 ? '+' : ''}
+                              {pl.toFixed(2)}%
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </section>
 
             <section className="glass-card rounded-2xl p-5 lg:p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Wallet size={18} className="text-primary" />
-                <h2 className="text-lg font-bold text-foreground">Deposit & Withdrawal</h2>
+                <h2 className="text-lg font-bold text-foreground">Send & Receive</h2>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                {(['deposit', 'withdraw'] as const).map((nextMode) => (
+              <div
+                className="relative grid grid-cols-4 mb-5 overflow-hidden border-b border-white/10 bg-white/[0.03] shadow-lg shadow-black/20"
+                role="tablist"
+                aria-label="Wallet transfer type"
+              >
+                <span
+                  aria-hidden
+                  className="absolute inset-y-0 left-0 w-1/4 bg-primary/10 transition-transform duration-300 ease-out"
+                  style={{
+                    transform: `translateX(${
+                      mode === 'withdraw' ? 100 : mode === 'send' ? 200 : mode === 'receive' ? 300 : 0
+                    }%)`,
+                  }}
+                />
+                <span
+                  aria-hidden
+                  className="absolute bottom-0 left-0 h-0.5 w-1/4 bg-primary transition-transform duration-300 ease-out"
+                  style={{
+                    transform: `translateX(${
+                      mode === 'withdraw' ? 100 : mode === 'send' ? 200 : mode === 'receive' ? 300 : 0
+                    }%)`,
+                  }}
+                />
+                {(['deposit', 'withdraw', 'send', 'receive'] as const).map((nextMode) => (
                   <button
                     key={nextMode}
                     type="button"
+                    role="tab"
+                    aria-selected={mode === nextMode}
+                    aria-controls="wallet-transfer-panel"
                     onClick={() => setMode(nextMode)}
-                    className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+                    className={`relative z-10 flex items-center justify-center px-3 py-4 text-sm font-semibold uppercase tracking-wide transition-colors ${
                       mode === nextMode
-                        ? 'brand-gradient text-white'
-                        : 'glass-chip text-muted-foreground hover:text-foreground'
+                        ? 'text-primary'
+                        : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
-                    {nextMode === 'deposit' ? (
-                      <ArrowDownToLine size={15} />
-                    ) : (
-                      <ArrowUpFromLine size={15} />
-                    )}
-                    {nextMode === 'deposit' ? 'Deposit' : 'Withdraw'}
+                    {transferModeLabel[nextMode]}
                   </button>
                 ))}
               </div>
 
-              <div className="mb-4 rounded-xl glass-tile p-3 flex items-center justify-between gap-3">
-                <span className="min-w-0">
-                  <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                    <ShieldCheck size={15} className={kycStatus === 'VERIFIED' ? 'text-up' : 'text-muted-foreground'} />
-                    Withdrawal KYC
-                  </span>
-                  <span className="block text-xs text-muted-foreground mt-0.5">
-                    {kycLabel[kycStatus]}
-                  </span>
-                </span>
-                {kycStatus !== 'VERIFIED' && (
-                  <button
-                    type="button"
-                    onClick={beginKyc}
-                    disabled={startingKyc}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl glass-chip px-3 py-2 text-xs font-semibold
-                      text-foreground hover:brightness-125 transition disabled:opacity-70 flex-shrink-0"
-                  >
-                    {startingKyc ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-                    Verify
-                  </button>
-                )}
-              </div>
+              {mode === 'withdraw' && (
+                <div className="space-y-4 mb-4">
+                  <div className="rounded-xl glass-tile p-3 flex items-center justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <ShieldCheck
+                          size={15}
+                          className={kycStatus === 'VERIFIED' ? 'text-up' : 'text-muted-foreground'}
+                        />
+                        Withdrawal KYC
+                      </span>
+                      <span className="block text-xs text-muted-foreground mt-0.5">
+                        {kycLabel[kycStatus]}
+                      </span>
+                    </span>
+                    {kycStatus !== 'VERIFIED' && (
+                      <button
+                        type="button"
+                        onClick={beginKyc}
+                        disabled={startingKyc}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl glass-chip px-3 py-2 text-xs font-semibold
+                          text-foreground hover:brightness-125 transition disabled:opacity-70 flex-shrink-0"
+                      >
+                        {startingKyc ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                        Verify
+                      </button>
+                    )}
+                  </div>
 
-              {kycStatus !== 'VERIFIED' && (
-                <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input
-                    value={legalName}
-                    onChange={(event) => setLegalName(event.target.value)}
-                    placeholder="Legal name"
-                    className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
-                  />
-                  <input
-                    value={country}
-                    onChange={(event) => setCountry(event.target.value.slice(0, 2).toUpperCase())}
-                    placeholder="Country code"
-                    className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
-                  />
-                  <select
-                    value={idType}
-                    onChange={(event) => setIdType(event.target.value as KycIdType)}
-                    className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground"
-                  >
-                    <option value="passport">Passport</option>
-                    <option value="national_id">National ID</option>
-                    <option value="drivers_license">Driver license</option>
-                    <option value="voter_id">Voter ID</option>
-                  </select>
-                  <input
-                    value={idLast4}
-                    onChange={(event) => setIdLast4(event.target.value.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="ID last 4"
-                    inputMode="numeric"
-                    className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
-                  />
+                  {kycStatus !== 'VERIFIED' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <select
+                        value={country}
+                        onChange={(event) => {
+                          setCountry(event.target.value);
+                          setProviderDocumentType('');
+                        }}
+                        className="pl-3 pr-6 py-2.5 rounded-xl glass-input text-sm text-foreground"
+                      >
+                        {kycCountries.length === 0 ? (
+                          <option value={country}>{country}</option>
+                        ) : (
+                          kycCountries.map((item) => (
+                            <option key={item.countryCode} value={item.countryCode}>
+                              {item.countryName}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      <select
+                        value={providerDocumentType}
+                        onChange={(event) => setProviderDocumentType(event.target.value)}
+                        className="pl-3 pr-6 py-2.5 rounded-xl glass-input text-sm text-foreground"
+                      >
+                        <option value="">Identity document</option>
+                        {kycDocuments.map((document) => (
+                          <option key={document.id} value={document.providerDocumentType}>
+                            {document.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               )}
 
-              <form onSubmit={handleTransfer} className="space-y-3">
-                <input
-                  type="number"
-                  min="0.0001"
-                  step="0.0001"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  placeholder="Amount in SF"
-                  className="w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
-                />
-                <input
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  placeholder="Note optional"
-                  className="w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
-                />
-                {mode === 'withdraw' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <input
-                      value={accountBank}
-                      onChange={(event) => setAccountBank(event.target.value)}
-                      placeholder="Bank code"
-                      className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
-                    />
-                    <input
-                      value={accountNumber}
-                      onChange={(event) => setAccountNumber(event.target.value)}
-                      placeholder="Account number"
-                      className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
-                    />
-                    <input
-                      value={beneficiaryName}
-                      onChange={(event) => setBeneficiaryName(event.target.value)}
-                      placeholder="Beneficiary name"
-                      className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
-                    />
+              {mode === 'receive' ? (
+                <div id="wallet-transfer-panel" role="tabpanel" className="space-y-4">
+                  <div className="glass-tile rounded-xl p-4">
+                    <p className="text-xs text-muted-foreground">Your wallet handle</p>
+                    <p className="mt-2 text-2xl font-bold text-foreground">{walletHandle || '@username'}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Share this handle so another user can send SC to your wallet.
+                    </p>
                   </div>
-                )}
-                <button
-                  type="submit"
-                  disabled={submitting || (mode === 'withdraw' && kycStatus !== 'VERIFIED')}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl brand-gradient px-4 py-3
-                    text-sm font-semibold text-white hover:brightness-110 transition disabled:opacity-70"
+                  <button
+                    type="button"
+                    onClick={copyWalletHandle}
+                    disabled={!walletHandle}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl brand-gradient px-4 py-3
+                      text-sm font-semibold text-white hover:brightness-110 transition disabled:opacity-70"
+                  >
+                    <Copy size={16} />
+                    Copy Wallet Handle
+                  </button>
+                </div>
+              ) : (
+                <form
+                  id="wallet-transfer-panel"
+                  role="tabpanel"
+                  onSubmit={handleTransfer}
+                  className="space-y-3"
                 >
-                  {submitting ? <Loader2 size={16} className="animate-spin" /> : <Wallet size={16} />}
-                  {submitting
-                    ? 'Processing...'
-                    : mode === 'deposit'
-                      ? 'Continue to Flutterwave'
-                      : kycStatus === 'VERIFIED'
-                        ? 'Request Withdrawal'
-                        : 'Verify KYC to Withdraw'}
-                </button>
-              </form>
+                  {mode === 'send' && (
+                    <input
+                      value={recipient}
+                      onChange={(event) => setRecipient(event.target.value)}
+                      placeholder="Recipient username"
+                      className="w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
+                    />
+                  )}
+                  <input
+                    type="number"
+                    min="0.0001"
+                    step="0.0001"
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    placeholder={mode === 'send' ? 'Amount in SC' : 'Amount in ₦'}
+                    aria-label={mode === 'send' ? 'Amount in Signal Credit' : 'Amount in naira'}
+                    className="w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
+                  />
+                  {mode === 'send' && (
+                    <p className="text-xs text-muted-foreground">
+                      {amount || '0'} SC ={' '}
+                      {naira(signalFaceCoinsToNaira(amount || 0))}
+                    </p>
+                  )}
+                  <input
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    placeholder="Note optional"
+                    className="w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
+                  />
+                  {mode === 'withdraw' && (
+                    <div className="space-y-2">
+                      {destinations.length > 0 && (
+                        <select
+                          value={destinationId}
+                          onChange={(event) => setDestinationId(event.target.value)}
+                          className="w-full pl-3 pr-6 py-2.5 rounded-xl glass-input text-sm text-foreground"
+                        >
+                          {destinations.map((destination) => (
+                            <option key={destination.id} value={destination.id}>
+                              {destination.accountName ?? destination.type} - {destination.currency}{' '}
+                              {destination.accountNumberLast4 ? `****${destination.accountNumberLast4}` : ''}
+                            </option>
+                          ))}
+                          <option value="">Add new destination</option>
+                        </select>
+                      )}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <input
+                        value={destinationCountry}
+                        onChange={(event) => setDestinationCountry(event.target.value.slice(0, 2).toUpperCase())}
+                        placeholder="Country"
+                        className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
+                      />
+                      <input
+                        value={destinationCurrency}
+                        onChange={(event) => setDestinationCurrency(event.target.value.slice(0, 3).toUpperCase())}
+                        placeholder="Currency"
+                        className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
+                      />
+                      <input
+                        value={accountBank}
+                        onChange={(event) => setAccountBank(event.target.value)}
+                        placeholder="Bank code"
+                        className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
+                      />
+                      <input
+                        value={accountNumber}
+                        onChange={(event) => setAccountNumber(event.target.value)}
+                        placeholder="Account number"
+                        className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
+                      />
+                      <input
+                        value={beneficiaryName}
+                        onChange={(event) => setBeneficiaryName(event.target.value)}
+                        placeholder="Beneficiary name"
+                        className="px-3 py-2.5 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
+                      />
+                    </div>
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={submitting || (mode === 'withdraw' && kycStatus !== 'VERIFIED')}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl brand-gradient px-4 py-3
+                      text-sm font-semibold text-white hover:brightness-110 transition disabled:opacity-70"
+                  >
+                    {submitting ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : mode === 'send' ? (
+                      <Send size={16} />
+                    ) : (
+                      <Wallet size={16} />
+                    )}
+                    {submitting
+                      ? 'Processing...'
+                      : mode === 'deposit'
+                        ? 'Continue to Flutterwave'
+                        : mode === 'send'
+                          ? 'Send SC'
+                          : kycStatus === 'VERIFIED'
+                            ? 'Request Withdrawal'
+                            : 'Verify KYC to Withdraw'}
+                  </button>
+                </form>
+              )}
             </section>
           </div>
 
@@ -722,5 +1100,19 @@ export default function PortfolioPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function PortfolioPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-20">
+          <Loader2 size={22} className="animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <PortfolioPageInner />
+    </Suspense>
   );
 }
