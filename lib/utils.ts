@@ -39,9 +39,9 @@ export function siteUrl(): string {
   return (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.signalface.com').replace(/\/$/, '');
 }
 
-/** A shareable invite link for a referral code. */
-export function inviteLink(referralCode: string): string {
-  return `${siteUrl()}/?ref=${encodeURIComponent(referralCode)}`;
+/** A shareable invite link using the inviter's public username. */
+export function inviteLink(username: string): string {
+  return `${siteUrl()}/?ref=${encodeURIComponent(username)}`;
 }
 
 /**
