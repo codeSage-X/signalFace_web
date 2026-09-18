@@ -11,6 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { DASH } from './theme';
+import { formatNaira } from '@/lib/utils';
 
 export const PERF_RANGES = ['7D', '30D', '90D', '1Y'] as const;
 export type PerfRange = (typeof PERF_RANGES)[number];
@@ -21,11 +22,8 @@ export interface PerfPoint {
   value: number;
 }
 
-const money = (n: number) =>
-  `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-/** Axis ticks stay terse — `$140`, not `$140.00`. */
-const axisMoney = (n: number) => `$${Math.round(n)}`;
+/** Axis ticks stay terse while tooltips retain full currency precision. */
+const axisMoney = (n: number) => `₦${Math.round(n).toLocaleString()}`;
 
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -137,7 +135,7 @@ export const PerformanceOverviewCard = ({
                   year: 'numeric',
                 })
               }
-              formatter={(v) => [money(v as number), 'Signal price']}
+              formatter={(v) => [formatNaira(v as number), 'Signal price']}
             />
             <Area
               type="monotone"

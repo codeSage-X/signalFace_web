@@ -5,12 +5,10 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import { ChevronDown, Eye, EyeOff } from 'lucide-react';
 import { DASH } from './theme';
 import type { SeriesPoint } from '@/lib/series';
+import { formatNaira } from '@/lib/utils';
 
 export const RANGES = ['24H', '7D', '30D', 'ALL'] as const;
 export type Range = (typeof RANGES)[number];
-
-const money = (n: number) =>
-  `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
  * The hero value card. Used by the ownership dashboard for portfolio value and by
@@ -97,14 +95,14 @@ export const PortfolioValueCard = ({
             className="mt-1 text-3xl lg:text-[2.5rem] font-bold leading-tight tracking-tight"
             style={{ color: DASH.ink }}
           >
-            {hidden ? '••••••' : money(totalValue)}
+            {hidden ? '••••••' : formatNaira(totalValue)}
           </p>
 
           <p className="mt-1 text-sm">
             {/* The sign carries direction; colour is redundant reinforcement. */}
             <span className="font-semibold" style={{ color: up ? DASH.up : DASH.down }}>
               {up ? '+' : '−'}
-              {money(changeMagnitude)} ({Math.abs(changePct).toFixed(2)}%)
+              {formatNaira(changeMagnitude)} ({Math.abs(changePct).toFixed(2)}%)
             </span>{' '}
             <span style={{ color: DASH.inkMuted }}>Today</span>
           </p>
@@ -174,7 +172,7 @@ export const PortfolioValueCard = ({
                       color: DASH.ink,
                     }}
                     labelFormatter={() => ''}
-                    formatter={(v) => [money(v as number), 'Value']}
+                    formatter={(v) => [formatNaira(v as number), 'Value']}
                   />
                   <Area
                     type="monotone"

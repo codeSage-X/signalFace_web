@@ -27,6 +27,17 @@ export function formatSignalFaceCoins(value: string | number): string {
   return `${formatted} SC`;
 }
 
+/** Format the app's fiat-denominated values consistently as Nigerian naira. */
+export function formatNaira(value: string | number): string {
+  const amount = Number(value);
+  return Number.isFinite(amount)
+    ? `₦${amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`
+    : '—';
+}
+
 /**
  * The app's public address, for links meant to be sent to other people.
  *

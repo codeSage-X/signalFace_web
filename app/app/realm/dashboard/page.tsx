@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import NextLink from 'next/link';
-import { BarChart3, DollarSign, Gift, Sparkles, Users } from 'lucide-react';
+import { BarChart3, Coins, Gift, Sparkles, Users } from 'lucide-react';
 import { realmsApi, type CreatorDashboard, type DashboardRange } from '@/lib/api';
 import { useProfileMode } from '@/lib/stores';
-import { formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
+import { formatNaira, formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
 import { useProfileSwitch } from '@/hooks/useCreatorProfile';
 import { DASH } from '@/components/dashboard/theme';
 import { PortfolioValueCard, type Range } from '@/components/dashboard/PortfolioValueCard';
@@ -209,17 +209,14 @@ export default function CreatorDashboardPage() {
           />
           <StatTile
             label="Signal Price"
-            value={`₦${signal.price}`}
+            value={formatNaira(signal.price)}
             sub={`${signal.priceChangePct >= 0 ? '+' : '−'}${Math.abs(signal.priceChangePct).toFixed(2)}%`}
             subTone={signal.priceChangePct >= 0 ? 'up' : 'down'}
-            icon={DollarSign}
+            icon={Coins}
           />
           <StatTile
             label="Total Volume"
-            value={`₦${Number(totals.volume).toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}`}
+            value={formatNaira(totals.volume)}
             sub={
               totals.volumeChangePct > 0
                 ? `+${totals.volumeChangePct.toFixed(2)}% in 24h`
@@ -231,10 +228,7 @@ export default function CreatorDashboardPage() {
           <StatTile
             label="Rewards Earned"
             value={formatSignalFaceCoins(nairaToSignalFaceCoins(totals.rewards))}
-            sub={`₦${Number(totals.rewards).toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })} equivalent`}
+            sub={`${formatNaira(totals.rewards)} equivalent`}
             icon={Gift}
           />
         </div>
