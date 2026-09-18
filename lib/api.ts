@@ -233,6 +233,22 @@ export interface MessageResponse {
   message: string;
 }
 
+export interface ChatMediaUpload {
+  url: string;
+  type: 'image' | 'video' | 'gif';
+  mimeType: string;
+  name: string;
+  moderationStatus: 'approved' | 'pending' | 'rejected';
+}
+
+export const chatMediaApi = {
+  upload: (file: File, options?: UploadOptions) => {
+    const formData = new FormData();
+    formData.append('media', file);
+    return uploadForm<ChatMediaUpload>('/chat-media', formData, options);
+  },
+};
+
 export interface UserSignal {
   id: string;
   score: string;

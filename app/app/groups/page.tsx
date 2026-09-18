@@ -13,27 +13,9 @@ import {
   useGroups,
 } from '@/hooks/useGroups';
 
-function GroupCard({ group, system, onBootstrap }: { group: InterestGroup; system?: boolean; onBootstrap?: () => Promise<void> }) {
-  const { user, joinGroup } = useGroupActions();
-  const { addToast } = useToast();
-  const isMember = Boolean(user && group.memberIds.includes(user.id));
-  const requested = Boolean(user && group.pendingMemberIds.includes(user.id));
-
-  const join = async () => {
-    try {
-      if (onBootstrap) {
-        await onBootstrap();
-        return;
-      }
-      await joinGroup(group);
-      addToast({ message: group.privacy === 'open' ? 'You joined the group.' : 'Request sent to the group owner.', type: 'success', duration: 3000 });
-    } catch (error) {
-      addToast({ message: error instanceof Error ? error.message : 'Could not update group membership.', type: 'error', duration: 4000 });
-    }
-  };
-
+function GroupCard({ group, system }: { group: InterestGroup; system?: boolean }) {
   return (
-    <article className="glass-card rounded-xl p-5 flex flex-col min-h-56">
+    <Link href={`/app/groups/${group.id}`} className="glass-card rounded-xl p-5 flex flex-col min-h-56 hover:border-primary/40 hover:bg-white/[0.04] transition">
       <div className="flex items-start justify-between gap-3">
         <span className="w-10 h-10 rounded-lg brand-gradient text-white flex items-center justify-center">
           <UsersRound size={20} />
@@ -48,18 +30,8 @@ function GroupCard({ group, system, onBootstrap }: { group: InterestGroup; syste
       <p className="mt-auto pt-4 text-xs text-muted-foreground">
         {group.memberIds.length} {group.memberIds.length === 1 ? 'member' : 'members'}
       </p>
-      {isMember ? (
-        <Link href={`/app/groups/${group.id}`} className="mt-3 py-2 rounded-lg text-center text-sm font-semibold brand-gradient text-white hover:brightness-110 transition">
-          Open discussion
-        </Link>
-      ) : requested ? (
-        <span className="mt-3 py-2 rounded-lg text-center text-sm font-semibold glass-chip text-muted-foreground">Request sent</span>
-      ) : (
-        <button onClick={join} className="mt-3 py-2 rounded-lg text-sm font-semibold glass-chip text-foreground hover:brightness-110 transition">
-          {group.privacy === 'open' ? 'Join group' : 'Request to join'}
-        </button>
-      )}
-    </article>
+      <span className="mt-3 text-sm font-semibold text-primary">Open group →</span>
+    </Link>
   );
 }
 
@@ -114,7 +86,7 @@ function CreateGroup({ onClose }: { onClose: () => void }) {
 function GroupsPageInner() {
   const params = useSearchParams();
   const { groups, loading } = useGroups();
-  const { createSystemGroup, user } = useGroupActions();
+  const { user } = useGroupActions();
   const { addToast } = useToast();
   const [creating, setCreating] = useState(false);
 
@@ -125,14 +97,6 @@ function GroupsPageInner() {
     ...source, privacy: 'open' as const, systemCreated: true, ownerId: null, memberIds: [], pendingMemberIds: [], createdAt: null,
   });
   const personalGroups = groups.filter((group) => !group.systemCreated);
-
-  const openSystemGroup = async (id: string) => {
-    try {
-      await createSystemGroup(id);
-    } catch (error) {
-      addToast({ message: error instanceof Error ? error.message : 'Could not prepare this group.', type: 'error', duration: 4000 });
-    }
-  };
 
   return (
     <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 pb-24">
@@ -153,12 +117,7 @@ function GroupsPageInner() {
         <p className="mt-1 text-sm text-muted-foreground">Open groups created and moderated by Signal Face.</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {configuredSystemGroups.map((group) => (
-            <GroupCard
-              key={group.id}
-              group={group}
-              system
-              onBootstrap={group.createdAt === null ? () => openSystemGroup(group.id) : undefined}
-            />
+            <GroupCard key={group.id} group={group} system />
           ))}
         </div>
       </section>

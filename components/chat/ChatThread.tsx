@@ -2,16 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowDown, ArrowLeft, Check, CheckCheck, Loader2, Send } from 'lucide-react';
+import { ArrowDown, ArrowLeft, Check, CheckCheck } from 'lucide-react';
 import { useChat, type ChatMessage } from '@/hooks/useChat';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { MessageComposer } from '@/components/chat/MessageComposer';
+import { MessageMedia } from '@/components/chat/MessageMedia';
 import type { FollowPerson } from '@/lib/api';
 
 /** Within this many pixels of the bottom counts as "following the conversation". */
 const NEAR_BOTTOM_PX = 80;
 /** Marking read is debounced so a burst of snapshots is one write, not many. */
 const MARK_READ_DEBOUNCE_MS = 500;
-const MAX_INPUT_HEIGHT_PX = 120;
 
 function initialsOf(name: string) {
   return name
@@ -52,13 +53,11 @@ export function ChatThread({
     other.id,
   );
 
-  const [draft, setDraft] = useState('');
   const [nearBottom, setNearBottom] = useState(true);
   const [unseenBelow, setUnseenBelow] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastCountRef = useRef(0);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -123,25 +122,6 @@ export function ChatThread({
 
     return () => clearTimeout(id);
   }, [unreadIds, markAsRead]);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const body = draft.trim();
-    if (!body || sending) return;
-
-    // Cleared immediately: waiting for the write to land makes the input feel
-    // stuck on a slow connection.
-    setDraft('');
-    if (inputRef.current) inputRef.current.style.height = 'auto';
-    setNearBottom(true);
-
-    try {
-      await sendMessage(body);
-    } catch {
-      // Logged in the hook. Put the text back so the words aren't lost.
-      setDraft(body);
-    }
-  };
 
   const grouped = useMemo(() => {
     const out: { day: string; items: ChatMessage[] }[] = [];
@@ -251,9 +231,8 @@ export function ChatThread({
                           : 'glass-chip text-foreground rounded-bl-md'
                       }`}
                     >
-                      <p className="text-sm whitespace-pre-wrap break-words">
-                        {message.text}
-                      </p>
+                      {message.media && <MessageMedia media={message.media} />}
+                      {message.text && <p className={`text-sm whitespace-pre-wrap break-words ${message.media ? 'mt-2' : ''}`}>{message.text}</p>}
                       <span
                         className={`mt-1 flex items-center gap-1 justify-end text-[10px] ${
                           mine ? 'text-white/70' : 'text-muted-foreground'
@@ -291,43 +270,14 @@ export function ChatThread({
         </div>
       )}
 
-      {/* Composer */}
-      <form
-        onSubmit={submit}
-        className="flex items-end gap-2 p-3 border-t border-white/10 flex-shrink-0"
-      >
-        <textarea
-          ref={inputRef}
-          rows={1}
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            // Grows with the text, but only so far — an unbounded box would push
-            // the conversation off screen.
-            const el = e.target;
-            el.style.height = 'auto';
-            el.style.height = `${Math.min(el.scrollHeight, MAX_INPUT_HEIGHT_PX)}px`;
-          }}
-          onKeyDown={(e) => {
-            // Enter sends; Shift+Enter is a newline.
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              submit(e);
-            }
-          }}
-          placeholder={`Message ${other.displayName}`}
-          className="flex-1 resize-none px-3.5 py-2.5 rounded-2xl glass-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          style={{ maxHeight: MAX_INPUT_HEIGHT_PX }}
-        />
-        <button
-          type="submit"
-          disabled={!draft.trim() || sending}
-          aria-label="Send"
-          className="w-10 h-10 rounded-full brand-gradient flex items-center justify-center text-white disabled:opacity-40 hover:brightness-110 transition flex-shrink-0"
-        >
-          {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-        </button>
-      </form>
+      <MessageComposer
+        placeholder={`Message ${other.displayName}`}
+        sending={sending}
+        onSend={async (text, media) => {
+          setNearBottom(true);
+          await sendMessage(text, media);
+        }}
+      />
     </div>
   );
 }

@@ -112,6 +112,10 @@ const isCollectionTab = (tab: Tab): tab is CollectionTab =>
 const PROFILE_TXN_LABELS: Record<WalletTransactionType, string> = {
   DEPOSIT: 'Deposit',
   WITHDRAWAL: 'Withdrawal',
+  WITHDRAWAL_HOLD: 'Withdrawal pending',
+  WITHDRAWAL_COMPLETED: 'Withdrawal completed',
+  WITHDRAWAL_RELEASE: 'Withdrawal released',
+  WITHDRAWAL_REVERSAL: 'Withdrawal reversed',
   TRADE_BUY: 'Signal purchase',
   TRADE_SELL: 'Signal sale',
   TRANSFER_SENT: 'SC sent',

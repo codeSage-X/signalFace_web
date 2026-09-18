@@ -19,13 +19,14 @@ import {
 } from 'firebase/firestore';
 import { chatDb, ensureChatAuth, isChatConfigured, logChatError } from '@/lib/chatClient';
 import { useAuth } from '@/lib/stores';
+import type { ChatMediaUpload } from '@/lib/api';
 
 export interface ChatMessage {
   id: string;
   senderId: string;
   text: string;
-  /** 'text' today; the field exists so images can be added without a migration. */
-  type: 'text' | 'image';
+  type: 'text' | 'image' | 'video' | 'gif';
+  media?: ChatMediaUpload;
   /** Null until the server timestamp lands, moments after an optimistic write. */
   timestamp: Date | null;
   readBy: string[];
@@ -110,6 +111,7 @@ export function useChat(conversationId: string | null, otherUserId: string | nul
                   senderId: data.senderId,
                   text: data.text ?? '',
                   type: data.type ?? 'text',
+                  media: data.media ?? undefined,
                   timestamp: toDate(data.timestamp),
                   readBy: data.readBy ?? [],
                 };
@@ -138,9 +140,9 @@ export function useChat(conversationId: string | null, otherUserId: string | nul
   }, [conversationId, otherUserId, me]);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, media?: ChatMediaUpload) => {
       const body = text.trim();
-      if (!body || !conversationId || !me) return;
+      if ((!body && !media) || !conversationId || !me) return;
 
       setSending(true);
       try {
@@ -153,7 +155,8 @@ export function useChat(conversationId: string | null, otherUserId: string | nul
         await addDoc(collection(conversation, 'messages'), {
           senderId: me,
           text: body,
-          type: 'text',
+          type: media?.type ?? 'text',
+          ...(media ? { media } : {}),
           timestamp: serverTimestamp(),
           readBy: [me],
         });
@@ -161,7 +164,11 @@ export function useChat(conversationId: string | null, otherUserId: string | nul
         // Denormalised so a conversation list can show a preview without reading
         // every thread's messages.
         await updateDoc(conversation, {
-          lastMessage: { text: body, senderId: me, timestamp: serverTimestamp() },
+          lastMessage: {
+            text: body || (media?.type === 'video' ? 'Video' : media?.type === 'gif' ? 'GIF' : 'Photo'),
+            senderId: me,
+            timestamp: serverTimestamp(),
+          },
         });
       } catch (err) {
         logChatError('sending a message', err);

@@ -1,0 +1,177 @@
+rules_version = '2';
+
+// Signal Face — Firestore security rules for direct messages.
+//
+// These rules can be scoped per participant because the client signs in with a
+// CUSTOM token minted by our API, so `request.auth.uid` is the same id the rest
+// of the platform uses. (Had we used anonymous sign-in, the uid would be a
+// throwaway value unrelated to the person, and the only expressible rule would
+// have been "any signed-in client may read any conversation".)
+//
+// Deploy with:  firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /conversations/{conversationId} {
+
+      function isParticipant() {
+        return request.auth != null
+               && request.auth.uid in resource.data.participants;
+      }
+
+      // Split deliberately, because `get` and `list` differ on one crucial point:
+      // a `get` of a document that does NOT exist still evaluates this rule, with
+      // `resource` set to null. Reading `resource.data.participants` in that case
+      // is an error, which fails the whole rule — so every first-ever open of a
+      // conversation was denied before it could be created. Allowing the null
+      // case leaks nothing: there is no document to read.
+      allow get: if request.auth != null
+                 && (resource == null || isParticipant());
+
+      // Queries are evaluated per candidate document, all of which exist, so the
+      // participant check both applies and correctly scopes the inbox.
+      allow list: if isParticipant();
+
+      // Creating a room requires putting yourself in it, and nobody may create a
+      // conversation on two other people's behalf.
+      allow create: if request.auth != null
+                    && request.auth.uid in request.resource.data.participants
+                    && request.resource.data.participants.size() >= 2;
+
+      // Updates are for the denormalised `lastMessage` preview only. The
+      // participant list is immutable, so nobody can add themselves to an
+      // existing thread and read its history.
+      allow update: if isParticipant()
+                    && request.resource.data.participants == resource.data.participants;
+
+      // Threads are not deletable from the client; there is no such affordance in
+      // the UI, and allowing it would let one participant destroy the other's copy.
+      allow delete: if false;
+
+      match /messages/{messageId} {
+
+        function inParentConversation() {
+          // `exists` first: `get` on a missing parent returns null, and reading
+          // `.data` off that fails the rule rather than simply denying it.
+          return request.auth != null
+                 && exists(/databases/$(database)/documents/conversations/$(conversationId))
+                 && request.auth.uid in
+                    get(/databases/$(database)/documents/conversations/$(conversationId))
+                      .data.participants;
+        }
+
+        allow read: if inParentConversation();
+
+        // A message must carry every field the client reads, must be attributed to
+        // the person sending it, and must start out read by exactly its sender.
+        allow create: if inParentConversation()
+                      && request.resource.data.keys().hasAll(
+                           ['senderId', 'text', 'timestamp', 'readBy']
+                         )
+                      && request.resource.data.senderId == request.auth.uid
+                      && request.resource.data.readBy == [request.auth.uid]
+                      && request.resource.data.text is string
+                      && (request.resource.data.text.size() > 0
+                          || request.resource.data.keys().hasAll(['media']))
+                      && request.resource.data.text.size() <= 4000;
+
+        // Marking read is the only permitted edit, and only to `readBy`. This is
+        // what makes read receipts safe: nobody can rewrite `text` or `senderId`
+        // after the fact, or mark a message read on someone else's behalf.
+        allow update: if inParentConversation()
+                      && request.resource.data.diff(resource.data)
+                           .affectedKeys().hasOnly(['readBy'])
+                      && request.resource.data.readBy.hasAll(resource.data.readBy)
+                      && request.resource.data.readBy.hasOnly(
+                           resource.data.readBy.concat([request.auth.uid])
+                         );
+
+        // Editing and deleting messages are not supported yet. Left closed
+        // deliberately rather than left open.
+        allow delete: if false;
+      }
+    }
+
+    match /groups/{groupId} {
+      function signedIn() {
+        return request.auth != null;
+      }
+
+      function isMember() {
+        return signedIn() && request.auth.uid in resource.data.memberIds;
+      }
+
+      function isOwner() {
+        return signedIn() && resource.data.ownerId == request.auth.uid;
+      }
+
+      function onlyMembershipChanged() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['memberIds', 'pendingMemberIds']);
+      }
+
+      function addsSelfAsMember() {
+        return request.resource.data.memberIds.hasAll(resource.data.memberIds)
+          && request.resource.data.memberIds.hasOnly(
+            resource.data.memberIds.concat([request.auth.uid])
+          )
+          && request.resource.data.pendingMemberIds == resource.data.pendingMemberIds;
+      }
+
+      function addsSelfAsRequest() {
+        return request.resource.data.memberIds == resource.data.memberIds
+          && request.resource.data.pendingMemberIds.hasAll(resource.data.pendingMemberIds)
+          && request.resource.data.pendingMemberIds.hasOnly(
+            resource.data.pendingMemberIds.concat([request.auth.uid])
+          );
+      }
+
+      // Groups are discoverable so people can request membership, while their
+      // message history remains visible only to approved members.
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+                    && request.auth.uid in request.resource.data.memberIds
+                    && request.resource.data.memberIds.size() == 1
+                    && request.resource.data.pendingMemberIds.size() == 0
+                    && ((request.resource.data.systemCreated == false
+                         && request.resource.data.ownerId == request.auth.uid)
+                        || (request.resource.data.systemCreated == true
+                            && request.resource.data.ownerId == null
+                            && (groupId == 'single-forum'
+                                || groupId == 'marriage-advice'
+                                || groupId == 'health-solutions')));
+
+      // Anyone can self-join an open group or submit one private-group request.
+      // Only an owner can resolve private membership, and all other group fields
+      // remain immutable from the client.
+      allow update: if signedIn()
+                    && onlyMembershipChanged()
+                    && request.resource.data.ownerId == resource.data.ownerId
+                    && request.resource.data.systemCreated == resource.data.systemCreated
+                    && ((resource.data.privacy == 'open' && addsSelfAsMember())
+                        || (resource.data.privacy == 'private'
+                            && (addsSelfAsRequest() || isOwner())));
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        function approvedMember() {
+          return request.auth != null
+                 && exists(/databases/$(database)/documents/groups/$(groupId))
+                 && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+        }
+
+        allow read: if approvedMember();
+        allow create: if approvedMember()
+                      && request.resource.data.senderId == request.auth.uid
+                      && request.resource.data.text is string
+                      && (request.resource.data.text.size() > 0
+                          || request.resource.data.keys().hasAll(['media']))
+                      && request.resource.data.text.size() <= 4000;
+        allow update, delete: if false;
+      }
+    }
+  }
+}

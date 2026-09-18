@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { chatDb, ensureChatAuth, isChatConfigured, logChatError } from '@/lib/chatClient';
 import { useAuth } from '@/lib/stores';
+import type { ChatMediaUpload } from '@/lib/api';
 
 export type GroupPrivacy = 'open' | 'private';
 
@@ -38,6 +39,8 @@ export interface GroupMessage {
   senderId: string;
   senderName: string;
   text: string;
+  type: 'text' | 'image' | 'video' | 'gif';
+  media?: ChatMediaUpload;
   timestamp: Date | null;
 }
 
@@ -220,7 +223,7 @@ export function useGroupMessages(groupId: string, isMember: boolean) {
       unsubscribe = onSnapshot(query(collection(chatDb(), 'groups', groupId, 'messages'), orderBy('timestamp', 'asc')), (snapshot) => {
         setMessages(snapshot.docs.map((entry) => {
           const data = entry.data();
-          return { id: entry.id, senderId: data.senderId, senderName: data.senderName ?? 'Member', text: data.text ?? '', timestamp: toDate(data.timestamp) };
+          return { id: entry.id, senderId: data.senderId, senderName: data.senderName ?? 'Member', text: data.text ?? '', type: data.type ?? 'text', media: data.media ?? undefined, timestamp: toDate(data.timestamp) };
         }));
         setLoading(false);
       }, (error) => {
@@ -231,13 +234,15 @@ export function useGroupMessages(groupId: string, isMember: boolean) {
     return () => { cancelled = true; unsubscribe?.(); };
   }, [groupId, isMember]);
 
-  const sendMessage = useCallback(async (text: string) => {
-    if (!user || !text.trim()) return;
+  const sendMessage = useCallback(async (text: string, media?: ChatMediaUpload) => {
+    if (!user || (!text.trim() && !media)) return;
     await ensureChatAuth();
     await addDoc(collection(chatDb(), 'groups', groupId, 'messages'), {
       senderId: user.id,
       senderName: user.displayName,
       text: text.trim(),
+      type: media?.type ?? 'text',
+      ...(media ? { media } : {}),
       timestamp: serverTimestamp(),
     });
   }, [groupId, user]);
