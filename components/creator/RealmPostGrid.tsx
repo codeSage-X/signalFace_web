@@ -102,7 +102,7 @@ const Tile = ({ post, index, onPostClick }: { post: FeedPost; index: number; onP
       onClick={() => onPostClick?.(index)}
       className="relative group rounded-lg overflow-hidden aspect-[9/16] bg-gradient-to-br from-[#1A1424] to-[#12101A] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary text-left hover:brightness-110 transition-all"
     >
-      {post.moderation !== 'VISIBLE' ? (
+      {post.moderation === 'CENSORED' || post.moderation === 'REMOVED' ? (
         <ModeratedMedia />
       ) : kind === 'image' && preview ? (
         // eslint-disable-next-line @next/next/no-img-element

@@ -1185,7 +1185,7 @@ function PostGridCard({
       className="relative group cursor-pointer rounded-lg overflow-hidden aspect-[9/16] bg-gradient-to-br from-[#1A1424] to-[#12101A] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       {/* Media, or a deliberate policy placeholder for a hidden post. */}
-      {post.moderation !== 'VISIBLE' ? (
+      {post.moderation === 'CENSORED' || post.moderation === 'REMOVED' ? (
         <ModeratedMedia />
       ) : kind === 'image' && preview ? (
         <img src={preview} alt="" className="absolute inset-0 w-full h-full object-cover" />

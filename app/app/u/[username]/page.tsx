@@ -443,7 +443,7 @@ function ProfilePostCard({
       type="button"
       aria-label={`Open post ${index + 1}`}
     >
-      {post.moderation !== 'VISIBLE' ? (
+      {post.moderation === 'CENSORED' || post.moderation === 'REMOVED' ? (
         <ModeratedMedia />
       ) : kind === 'image' && preview ? (
         <img src={preview} alt="" className="absolute inset-0 w-full h-full object-cover" />

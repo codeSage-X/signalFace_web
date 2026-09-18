@@ -443,7 +443,7 @@ function PostTile({ post, onOpen }: { post: FeedPost; onOpen: () => void }) {
       onClick={onOpen}
       className="relative rounded-lg overflow-hidden aspect-[9/16] bg-gradient-to-br from-[#1A1424] to-[#12101A] group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
-      {post.moderation !== 'VISIBLE' ? (
+      {post.moderation === 'CENSORED' || post.moderation === 'REMOVED' ? (
         <ModeratedMedia />
       ) : post.kind === 'video' && post.coverUrl ? (
         // The author's chosen cover, and cheaper than a <video> per tile.

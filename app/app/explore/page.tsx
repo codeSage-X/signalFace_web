@@ -89,7 +89,7 @@ const PostThumb = ({ post, onOpen }: { post: FeedPost; onOpen: () => void }) => 
       className="glass-card glass-hover rounded-2xl overflow-hidden flex flex-col group text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       <div className="relative aspect-[4/5] bg-black/40 overflow-hidden">
-        {post.moderation !== 'VISIBLE' ? (
+        {post.moderation === 'CENSORED' || post.moderation === 'REMOVED' ? (
           <ModeratedMedia />
         ) : post.kind === 'image' && src ? (
           // eslint-disable-next-line @next/next/no-img-element
