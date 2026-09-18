@@ -23,10 +23,9 @@ export const useMyRealmSync = () => {
   const setRealm = useProfileMode((s) => s.setRealm);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      setRealm(null);
-      return;
-    }
+    // Logout resets profile mode explicitly. Do not clear it while auth storage
+    // is hydrating, or a reload can overwrite the persisted creator mode first.
+    if (!isAuthenticated) return;
 
     let cancelled = false;
     realmsApi

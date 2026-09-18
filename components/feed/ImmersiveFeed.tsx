@@ -21,6 +21,7 @@ import {
 import { useAuth, useToast, useVideoSound } from '@/lib/stores';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { ModeratedMedia } from '@/components/social/ModeratedMedia';
 
 const PAGE_SIZE = 6;
 // Start fetching the next page once the viewer is this many posts from the end.
@@ -872,6 +873,9 @@ function FeedItem({
             <TextContent post={post} index={index} />
           ) : (
             <MediaCarousel post={post} isActive={isActive} />
+          )}
+          {(post.moderation === 'CENSORED' || post.moderation === 'REMOVED') && (
+            <ModeratedMedia />
           )}
           <PostHeader post={post} />
         </div>
