@@ -34,11 +34,12 @@ import {
 } from '@/lib/api';
 import { useAuth, useToast } from '@/lib/stores';
 import {
-  nairaToSignalFaceCoins,
-  signalFaceCoinsToNaira,
+  formatUsd,
+  signalFaceCoinsToUsd,
+  usdToSignalFaceCoins,
 } from '@/lib/utils';
 import { UserAvatar } from '@/components/UserAvatar';
-import { naira } from '@/components/dashboard/SignalMarketCard';
+import { usd } from '@/components/dashboard/SignalMarketCard';
 
 const PAGE_SIZE = 20;
 
@@ -76,11 +77,11 @@ const transferModeLabel = {
   receive: 'Receive',
 } as const;
 
-function signedNaira(raw: string | number) {
+function signedUsd(raw: string | number) {
   const amount = Number(raw);
-  if (!Number.isFinite(amount)) return '₦0.00';
+  if (!Number.isFinite(amount)) return '$0.00';
   const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
-  return `${sign}₦${Math.abs(amount).toLocaleString(undefined, {
+  return `${sign}$${Math.abs(amount).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -186,6 +187,7 @@ function PortfolioPageInner() {
   const [mode, setMode] = useState<'deposit' | 'withdraw' | 'send' | 'receive'>('deposit');
   const [portfolioTab, setPortfolioTab] = useState<'holdings' | 'balance'>('holdings');
   const [amount, setAmount] = useState('');
+  const [paymentCurrency, setPaymentCurrency] = useState('USD');
   const [note, setNote] = useState('');
   const [recipient, setRecipient] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -405,10 +407,10 @@ function PortfolioPageInner() {
     () => holdings.reduce((sum, h) => sum + Number(h.quantity), 0),
     [holdings],
   );
-  const availableNaira = Number(wallet?.pointsBalance ?? 0);
-  const availableCoins = nairaToSignalFaceCoins(availableNaira);
+  const availableUsd = Number(wallet?.pointsBalance ?? 0);
+  const availableCoins = usdToSignalFaceCoins(availableUsd);
   const ownedSignalValue = Number(wallet?.totalValue ?? 0);
-  const portfolioBalance = ownedSignalValue + availableNaira;
+  const portfolioBalance = ownedSignalValue + availableUsd;
   const rising = change > 0;
   const falling = change < 0;
   const ChangeIcon = rising ? TrendingUp : falling ? TrendingDown : Minus;
@@ -427,7 +429,11 @@ function PortfolioPageInner() {
     setSubmitting(true);
     try {
       if (mode === 'deposit') {
-        const checkout = await walletApi.deposit({ amount: ledgerAmount, note });
+        const checkout = await walletApi.deposit({
+          amount: ledgerAmount,
+          paymentCurrency,
+          note,
+        });
         if (checkout.url) {
           window.location.assign(checkout.url);
           return;
@@ -584,7 +590,7 @@ function PortfolioPageInner() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <PortfolioStat
               label="Total Portfolio Value"
-              value={naira(wallet?.totalValue ?? 0)}
+              value={usd(wallet?.totalValue ?? 0)}
               sub="Current value of owned signals"
               icon={Briefcase}
             />
@@ -604,7 +610,7 @@ function PortfolioPageInner() {
             <PortfolioStat
               label="Available to Trade"
               value={<SignalFaceCoinsValue amount={availableCoins} />}
-              sub={`${naira(availableNaira)} equivalent`}
+              sub={`${formatUsd(availableUsd)} equivalent`}
               icon={Wallet}
               valueClassName="text-2xl lg:text-[1.45rem] leading-tight"
             />
@@ -654,7 +660,7 @@ function PortfolioPageInner() {
                     <div className="py-3">
                       <p className="text-sm text-muted-foreground">Portfolio Balance</p>
                       <p className="mt-2 text-3xl lg:text-4xl font-bold text-foreground">
-                        {naira(portfolioBalance)}
+                        {usd(portfolioBalance)}
                       </p>
                       <p className="mt-2 text-xs text-muted-foreground">
                         Owned Signal value plus your available Signal Credit balance.
@@ -665,7 +671,7 @@ function PortfolioPageInner() {
                       <div className="glass-tile rounded-xl p-4">
                         <p className="text-xs text-muted-foreground">Owned Signal Value</p>
                         <p className="mt-2 text-xl font-bold text-foreground">
-                          {naira(ownedSignalValue)}
+                          {usd(ownedSignalValue)}
                         </p>
                         <p
                           className={`mt-1 text-xs ${
@@ -686,7 +692,7 @@ function PortfolioPageInner() {
                           />
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {naira(availableNaira)} equivalent
+                          {formatUsd(availableUsd)} equivalent
                         </p>
                       </div>
                     </div>
@@ -732,12 +738,12 @@ function PortfolioPageInner() {
                               {Number(h.quantity).toLocaleString(undefined, {
                                 maximumFractionDigits: 4,
                               })}{' '}
-                              shares @ {naira(h.avgBuyPrice)} avg
+                              shares @ {usd(h.avgBuyPrice)} avg
                             </p>
                           </Link>
 
                           <div className="text-right flex-shrink-0">
-                            <p className="font-semibold text-foreground">{naira(h.currentValue)}</p>
+                            <p className="font-semibold text-foreground">{usd(h.currentValue)}</p>
                             <p
                               className={`text-sm ${
                                 pl > 0 ? 'text-up' : pl < 0 ? 'text-down' : 'text-muted-foreground'
@@ -910,15 +916,27 @@ function PortfolioPageInner() {
                     step="0.0001"
                     value={amount}
                     onChange={(event) => setAmount(event.target.value)}
-                    placeholder={mode === 'send' ? 'Amount in SC' : 'Amount in ₦'}
-                    aria-label={mode === 'send' ? 'Amount in Signal Credit' : 'Amount in naira'}
+                    placeholder={mode === 'send' ? 'Amount in SC' : 'Amount in USD'}
+                    aria-label={mode === 'send' ? 'Amount in Signal Credit' : 'Amount in US dollars'}
                     className="w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
                   />
                   {mode === 'send' && (
                     <p className="text-xs text-muted-foreground">
                       {amount || '0'} SC ={' '}
-                      {naira(signalFaceCoinsToNaira(amount || 0))}
+                      {formatUsd(signalFaceCoinsToUsd(amount || 0))}
                     </p>
+                  )}
+                  {mode === 'deposit' && (
+                    <select
+                      value={paymentCurrency}
+                      onChange={(event) => setPaymentCurrency(event.target.value)}
+                      className="w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground"
+                      aria-label="Payment currency"
+                    >
+                      {['USD', 'NGN', 'GBP', 'EUR', 'GHS', 'KES', 'ZAR'].map((currency) => (
+                        <option key={currency} value={currency}>{currency}</option>
+                      ))}
+                    </select>
                   )}
                   <input
                     value={note}
@@ -1035,10 +1053,10 @@ function PortfolioPageInner() {
                         </div>
                         <div className="text-right flex-shrink-0">
                           <p className={`text-sm font-bold ${positive ? 'text-up' : 'text-down'}`}>
-                            {signedNaira(transaction.amount)}
+                            {signedUsd(transaction.amount)}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Bal. {signedNaira(transaction.balanceAfter).replace(/^[-+]/, '')}
+                            Bal. {signedUsd(transaction.balanceAfter).replace(/^[-+]/, '')}
                           </p>
                         </div>
                       </li>

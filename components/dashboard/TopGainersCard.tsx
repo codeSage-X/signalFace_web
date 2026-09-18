@@ -3,8 +3,8 @@
 import NextLink from 'next/link';
 import { DASH } from './theme';
 
-const naira = (n: number) =>
-  `₦${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const usd = (n: number) =>
+  `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export interface GainerRow {
   id: string;
@@ -72,7 +72,7 @@ export const TopGainersCard = ({ rows }: { rows: GainerRow[] }) => (
                   {Math.abs(r.changePct).toFixed(1)}%
                 </p>
                 <p className="text-xs" style={{ color: DASH.inkMuted }}>
-                  {naira(r.price)}
+                  {usd(r.price)}
                 </p>
               </div>
             </>

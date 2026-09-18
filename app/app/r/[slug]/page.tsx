@@ -265,7 +265,7 @@ export default function PublicRealmPage() {
             <div className="flex items-center gap-2">
               <TrendingUp size={15} className="text-muted-foreground" />
               <span className="font-bold text-foreground">
-                ₦{Number(realm.signal.price).toFixed(2)}
+                ${Number(realm.signal.price).toFixed(2)}
               </span>
               <span className="text-sm text-muted-foreground">Signal price</span>
             </div>

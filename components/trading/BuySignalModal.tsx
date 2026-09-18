@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { Loader2, Wallet, X, Zap } from 'lucide-react';
-import { naira } from '@/components/dashboard/SignalMarketCard';
 import { signalsApi, type SignalListItem } from '@/lib/api';
 import { useAuth, useToast } from '@/lib/stores';
-import { formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
+import { formatSignalFaceCoins, formatUsd, usdToSignalFaceCoins } from '@/lib/utils';
+
+const PAYMENT_CURRENCIES = ['USD', 'NGN', 'GBP', 'EUR', 'GHS', 'KES', 'ZAR'] as const;
 
 interface BuySignalModalProps {
   signal: SignalListItem | null;
@@ -18,6 +19,7 @@ export function BuySignalModal({ signal, onClose, onPurchased }: BuySignalModalP
   const { addToast } = useToast();
   const [quantity, setQuantity] = useState('1');
   const [paymentMethod, setPaymentMethod] = useState<'balance' | 'flutterwave'>('balance');
+  const [paymentCurrency, setPaymentCurrency] = useState('USD');
   const [submitting, setSubmitting] = useState(false);
 
   const total = useMemo(() => {
@@ -46,7 +48,11 @@ export function BuySignalModal({ signal, onClose, onPurchased }: BuySignalModalP
 
     setSubmitting(true);
     try {
-      const result = await signalsApi.buy(signal.id, { quantity: qty, paymentMethod });
+      const result = await signalsApi.buy(signal.id, {
+        quantity: qty,
+        paymentMethod,
+        ...(paymentMethod === 'flutterwave' ? { paymentCurrency } : {}),
+      });
       if (paymentMethod === 'flutterwave') {
         if (!result.url) throw new Error('Flutterwave did not return a payment link.');
         window.location.assign(result.url);
@@ -95,11 +101,11 @@ export function BuySignalModal({ signal, onClose, onPurchased }: BuySignalModalP
           <div className="grid grid-cols-2 gap-3">
             <div className="glass-tile rounded-xl p-3">
               <p className="text-xs text-muted-foreground">Price per 1 Signal</p>
-              <p className="text-lg font-bold text-primary">{naira(signal.price)}</p>
+              <p className="text-lg font-bold text-primary">{formatUsd(signal.price)}</p>
             </div>
             <div className="glass-tile rounded-xl p-3">
               <p className="text-xs text-muted-foreground">Total</p>
-              <p className="text-lg font-bold text-foreground">{naira(total)}</p>
+              <p className="text-lg font-bold text-foreground">{formatUsd(total)}</p>
             </div>
           </div>
 
@@ -116,11 +122,26 @@ export function BuySignalModal({ signal, onClose, onPurchased }: BuySignalModalP
           </label>
 
           <p className="text-xs text-muted-foreground">
-            {quantity || '0'} x {naira(signal.price)} = {naira(total)}
+            {quantity || '0'} x {formatUsd(signal.price)} = {formatUsd(total)}
           </p>
           <p className="text-xs text-muted-foreground">
-            Wallet cost: {formatSignalFaceCoins(nairaToSignalFaceCoins(total))}
+            Wallet cost: {formatSignalFaceCoins(usdToSignalFaceCoins(total))}
           </p>
+
+          {paymentMethod === 'flutterwave' && (
+            <label className="block">
+              <span className="text-xs font-semibold text-muted-foreground">Payment currency</span>
+              <select
+                value={paymentCurrency}
+                onChange={(event) => setPaymentCurrency(event.target.value)}
+                className="mt-1 w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground"
+              >
+                {PAYMENT_CURRENCIES.map((currency) => (
+                  <option key={currency} value={currency}>{currency}</option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <button

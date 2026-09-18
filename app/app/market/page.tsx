@@ -18,7 +18,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import {
   SignalMarketCard,
   compact,
-  naira,
+  usd,
 } from '@/components/dashboard/SignalMarketCard';
 import {
   marketApi,
@@ -31,7 +31,7 @@ import {
   type WalletOverview,
 } from '@/lib/api';
 import { useAuth, useToast } from '@/lib/stores';
-import { formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
+import { formatSignalFaceCoins, usdToSignalFaceCoins } from '@/lib/utils';
 import { BuySignalModal } from '@/components/trading/BuySignalModal';
 
 const P2P_PAGE_SIZE = 30;
@@ -86,15 +86,15 @@ function ListingCard({
         </div>
         <div className="glass-tile rounded-xl p-3">
           <dt className="text-xs text-muted-foreground">Ask Price</dt>
-          <dd className="mt-1 font-bold text-primary">{naira(listing.pricePerUnit)}</dd>
+          <dd className="mt-1 font-bold text-primary">{usd(listing.pricePerUnit)}</dd>
         </div>
         <div className="glass-tile rounded-xl p-3">
           <dt className="text-xs text-muted-foreground">Market Price</dt>
-          <dd className="mt-1 font-bold text-foreground">{naira(listing.currentSignalPrice)}</dd>
+          <dd className="mt-1 font-bold text-foreground">{usd(listing.currentSignalPrice)}</dd>
         </div>
         <div className="glass-tile rounded-xl p-3">
           <dt className="text-xs text-muted-foreground">Total</dt>
-          <dd className="mt-1 font-bold text-foreground">{naira(listing.total)}</dd>
+          <dd className="mt-1 font-bold text-foreground">{usd(listing.total)}</dd>
         </div>
       </dl>
 
@@ -426,9 +426,9 @@ function MarketPageInner() {
             <div className="glass-chip rounded-xl px-4 py-2.5 text-sm text-muted-foreground">
               Available to trade{' '}
               <span className="font-bold text-foreground">
-                {formatSignalFaceCoins(nairaToSignalFaceCoins(availableBalance))}
+                {formatSignalFaceCoins(usdToSignalFaceCoins(availableBalance))}
               </span>
-              <span className="ml-1">({naira(availableBalance)} equivalent)</span>
+              <span className="ml-1">({usd(availableBalance)} equivalent)</span>
             </div>
           </div>
 
@@ -539,7 +539,7 @@ function MarketPageInner() {
                     />
                     {selectedHolding && (
                       <p className="text-xs text-muted-foreground">
-                        Market price is {naira(selectedHolding.currentPrice)}. Listing reserves the
+                        Market price is {usd(selectedHolding.currentPrice)}. Listing reserves the
                         quantity until it sells or you cancel.
                       </p>
                     )}
@@ -589,7 +589,7 @@ function MarketPageInner() {
                               {Number(listing.quantity).toLocaleString(undefined, {
                                 maximumFractionDigits: 4,
                               })}{' '}
-                              @ {naira(listing.pricePerUnit)}
+                              @ {usd(listing.pricePerUnit)}
                             </p>
                           </div>
                           <button

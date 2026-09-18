@@ -13,7 +13,7 @@ import {
   type WalletOverview,
 } from '@/lib/api';
 import { syntheticSeries } from '@/lib/series';
-import { formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
+import { formatSignalFaceCoins, formatUsd, usdToSignalFaceCoins } from '@/lib/utils';
 import { DASH } from '@/components/dashboard/theme';
 import { PortfolioValueCard, type Range } from '@/components/dashboard/PortfolioValueCard';
 import { StatTile } from '@/components/dashboard/StatTile';
@@ -27,8 +27,7 @@ import { TopGainersCard, type GainerRow } from '@/components/dashboard/TopGainer
 /** How many samples each range renders. */
 const RANGE_POINTS: Record<Range, number> = { '24H': 24, '7D': 28, '30D': 30, ALL: 40 };
 
-const naira = (n: number) =>
-  `₦${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = formatUsd;
 
 function timeAgo(value: string) {
   const diff = Date.now() - new Date(value).getTime();
@@ -113,7 +112,7 @@ export default function DashboardPage() {
       shares,
       pnl,
       pnlPct: ownershipCost > 0 ? (pnl / ownershipCost) * 100 : 0,
-      availableNaira: Number(wallet?.pointsBalance ?? 0),
+      availableUsd: Number(wallet?.pointsBalance ?? 0),
       changePct: wallet?.change24h ?? 0,
     };
   }, [wallet, holdings]);
@@ -199,7 +198,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
           <StatTile
             label="Total Portfolio Value"
-            value={naira(totals.totalValue)}
+            value={money(totals.totalValue)}
             sub={holdings.length > 0 ? `${holdings.length} signals owned` : 'No holdings yet'}
             icon={Briefcase}
           />
@@ -218,8 +217,8 @@ export default function DashboardPage() {
           />
           <StatTile
             label="Available to Trade"
-            value={formatSignalFaceCoins(nairaToSignalFaceCoins(totals.availableNaira))}
-            sub={`${naira(totals.availableNaira)} equivalent`}
+            value={formatSignalFaceCoins(usdToSignalFaceCoins(totals.availableUsd))}
+            sub={`${money(totals.availableUsd)} equivalent`}
             icon={Wallet}
           />
         </div>

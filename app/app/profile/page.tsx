@@ -52,11 +52,12 @@ import {
   displayUrl,
   externalHref,
   formatSignalFaceCoins,
-  nairaToSignalFaceCoins,
+  formatUsd,
+  usdToSignalFaceCoins,
 } from '@/lib/utils';
 import { FollowersFollowingModal } from '@/components/social/FollowersFollowingModal';
 import { ModeratedMedia } from '@/components/social/ModeratedMedia';
-import { naira } from '@/components/dashboard/SignalMarketCard';
+import { usd } from '@/components/dashboard/SignalMarketCard';
 
 const MAX_PINNED_POSTS = 3;
 const PAGE_SIZE = 12;
@@ -121,11 +122,11 @@ const PROFILE_TXN_LABELS: Record<WalletTransactionType, string> = {
   REWARD_CLAIM: 'Reward claimed',
 };
 
-function formatNaira(raw: string | number) {
+function formatMoney(raw: string | number) {
   const n = Number(raw);
-  if (!Number.isFinite(n)) return '₦0.00';
+  if (!Number.isFinite(n)) return '$0.00';
   const sign = n > 0 ? '+' : n < 0 ? '-' : '';
-  return `${sign}₦${Math.abs(n).toLocaleString(undefined, {
+  return `${sign}$${Math.abs(n).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -1018,8 +1019,8 @@ function ProfilePortfolioTransparency({
   loading: boolean;
 }) {
   const holdings = wallet?.holdings ?? [];
-  const balanceNaira = Number(wallet?.pointsBalance ?? 0);
-  const balanceCoins = nairaToSignalFaceCoins(balanceNaira);
+  const balanceUsd = Number(wallet?.pointsBalance ?? 0);
+  const balanceCoins = usdToSignalFaceCoins(balanceUsd);
   const change = wallet?.change24h ?? 0;
 
   if (loading) {
@@ -1038,7 +1039,7 @@ function ProfilePortfolioTransparency({
         <div className="glass-card rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">Portfolio Value</p>
           <p className="mt-2 text-xl font-bold text-foreground">
-            {naira(wallet?.totalValue ?? 0)}
+            {usd(wallet?.totalValue ?? 0)}
           </p>
         </div>
         <div className="glass-card rounded-2xl p-4">
@@ -1057,7 +1058,7 @@ function ProfilePortfolioTransparency({
           <p className="mt-2 text-xl font-bold text-foreground">
             {formatSignalFaceCoins(balanceCoins)}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">{naira(balanceNaira)} equivalent</p>
+          <p className="mt-1 text-xs text-muted-foreground">{formatUsd(balanceUsd)} equivalent</p>
         </div>
       </div>
 
@@ -1086,10 +1087,10 @@ function ProfilePortfolioTransparency({
                   </NextLink>
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-semibold text-foreground">
-                      {naira(holding.currentValue)}
+                      {usd(holding.currentValue)}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Avg {naira(holding.avgBuyPrice)}
+                      Avg {usd(holding.avgBuyPrice)}
                     </p>
                   </div>
                 </li>
@@ -1121,7 +1122,7 @@ function ProfilePortfolioTransparency({
                       Number(transaction.amount) >= 0 ? 'text-up' : 'text-down'
                     }`}
                   >
-                    {formatNaira(transaction.amount)}
+                    {formatMoney(transaction.amount)}
                   </p>
                 </li>
               ))}

@@ -2,7 +2,7 @@
 
 import NextLink from 'next/link';
 import { DASH } from './theme';
-import { formatNaira } from '@/lib/utils';
+import { formatUsd } from '@/lib/utils';
 
 export interface HolderRow {
   userId: string;
@@ -66,7 +66,7 @@ export const RealmTopHoldersCard = ({ holders }: { holders: HolderRow[] }) => (
                 @{holder.username}
               </NextLink>
               <p className="text-xs" style={{ color: DASH.inkFaint }}>
-                {holder.shares} shares · {formatNaira(holder.value)}
+                {holder.shares} shares · {formatUsd(holder.value)}
               </p>
             </div>
 

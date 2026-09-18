@@ -5,16 +5,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export const SIGNALFACE_COIN_NAIRA = 500;
+export const SIGNALFACE_COIN_USD = 1;
 
-export function nairaToSignalFaceCoins(value: string | number): number {
+export function usdToSignalFaceCoins(value: string | number): number {
   const amount = Number(value);
-  return Number.isFinite(amount) ? amount / SIGNALFACE_COIN_NAIRA : 0;
+  return Number.isFinite(amount) ? amount / SIGNALFACE_COIN_USD : 0;
 }
 
-export function signalFaceCoinsToNaira(value: string | number): number {
+export function signalFaceCoinsToUsd(value: string | number): number {
   const coins = Number(value);
-  return Number.isFinite(coins) ? coins * SIGNALFACE_COIN_NAIRA : 0;
+  return Number.isFinite(coins) ? coins * SIGNALFACE_COIN_USD : 0;
 }
 
 export function formatSignalFaceCoins(value: string | number): string {
@@ -27,14 +27,15 @@ export function formatSignalFaceCoins(value: string | number): string {
   return `${formatted} SC`;
 }
 
-/** Format the app's fiat-denominated values consistently as Nigerian naira. */
-export function formatNaira(value: string | number): string {
+export function formatUsd(value: string | number): string {
   const amount = Number(value);
   return Number.isFinite(amount)
-    ? `₦${amount.toLocaleString(undefined, {
+    ? amount.toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-      })}`
+      })
     : '—';
 }
 

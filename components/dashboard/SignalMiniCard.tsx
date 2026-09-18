@@ -4,8 +4,8 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import { DASH } from './theme';
 import type { SeriesPoint } from '@/lib/series';
 
-const naira = (n: number) =>
-  `₦${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const usd = (n: number) =>
+  `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export interface MiniSignal {
   id: string;
@@ -77,7 +77,7 @@ export const SignalMiniCard = ({ signal }: { signal: MiniSignal }) => {
                   color: DASH.ink,
                 }}
                 labelFormatter={() => ''}
-                formatter={(v) => [naira(v as number), 'Price']}
+                formatter={(v) => [usd(v as number), 'Price']}
               />
               <Area
                 type="monotone"
@@ -100,7 +100,7 @@ export const SignalMiniCard = ({ signal }: { signal: MiniSignal }) => {
       </p>
 
       <p className="mt-2 text-lg font-bold" style={{ color: DASH.ink }}>
-        {naira(signal.price)}
+        {usd(signal.price)}
       </p>
       <p className="text-xs" style={{ color: DASH.inkMuted }}>
         {signal.portfolioPct.toFixed(1)}% of Portfolio

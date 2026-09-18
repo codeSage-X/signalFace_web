@@ -9,7 +9,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPalette, faCog, faSignOut } from '@fortawesome/free-solid-svg-icons';
 import { usersApi, ApiError, type RealmCategory } from '@/lib/api';
 import { InterestPicker } from '@/components/social/InterestPicker';
-import { formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
+import { formatSignalFaceCoins, usdToSignalFaceCoins } from '@/lib/utils';
 
 export default function SettingsPage() {
   const { user, logout, updateUser } = useAuth();
@@ -141,7 +141,7 @@ export default function SettingsPage() {
             <div>
               <label className="text-sm text-muted-foreground">Signal Credit</label>
               <p className="text-foreground mt-1">
-                {formatSignalFaceCoins(nairaToSignalFaceCoins(user?.pointsBalance ?? 0))}
+                {formatSignalFaceCoins(usdToSignalFaceCoins(user?.pointsBalance ?? 0))}
               </p>
             </div>
             <div className="flex items-center gap-2 pt-2">
@@ -182,7 +182,7 @@ export default function SettingsPage() {
             <div>
               <label className="text-sm text-muted-foreground">Signal Credit</label>
               <p className="text-foreground mt-1">
-                {formatSignalFaceCoins(nairaToSignalFaceCoins(user?.pointsBalance ?? 0))}
+                {formatSignalFaceCoins(usdToSignalFaceCoins(user?.pointsBalance ?? 0))}
               </p>
             </div>
           </div>

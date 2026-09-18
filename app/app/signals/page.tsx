@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2, LineChart } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/StatCard';
-import { SignalMarketCard, naira } from '@/components/dashboard/SignalMarketCard';
+import { SignalMarketCard, usd } from '@/components/dashboard/SignalMarketCard';
 import { signalsApi, type SignalListItem } from '@/lib/api';
 import { useToast } from '@/lib/stores';
 import { BuySignalModal } from '@/components/trading/BuySignalModal';
@@ -55,7 +55,7 @@ export default function SignalsPage() {
       count: signals.length,
       avg,
       holders,
-      range: low === high ? naira(low) : `${naira(low)} – ${naira(high)}`,
+      range: low === high ? usd(low) : `${usd(low)} – ${usd(high)}`,
     };
   }, [signals]);
 
@@ -76,7 +76,7 @@ export default function SignalsPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard label="Total Signals" value={stats.count} />
-        <StatCard label="Avg Price" value={naira(stats.avg)} />
+        <StatCard label="Avg Price" value={usd(stats.avg)} />
         <StatCard label="Total Holders" value={stats.holders.toLocaleString()} />
         <StatCard label="Price Range" value={stats.range} />
       </div>

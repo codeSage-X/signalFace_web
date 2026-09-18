@@ -5,7 +5,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import { ChevronDown, Eye, EyeOff } from 'lucide-react';
 import { DASH } from './theme';
 import type { SeriesPoint } from '@/lib/series';
-import { formatNaira } from '@/lib/utils';
+import { formatUsd } from '@/lib/utils';
 
 export const RANGES = ['24H', '7D', '30D', 'ALL'] as const;
 export type Range = (typeof RANGES)[number];
@@ -95,14 +95,14 @@ export const PortfolioValueCard = ({
             className="mt-1 text-3xl lg:text-[2.5rem] font-bold leading-tight tracking-tight"
             style={{ color: DASH.ink }}
           >
-            {hidden ? '••••••' : formatNaira(totalValue)}
+            {hidden ? '••••••' : formatUsd(totalValue)}
           </p>
 
           <p className="mt-1 text-sm">
             {/* The sign carries direction; colour is redundant reinforcement. */}
             <span className="font-semibold" style={{ color: up ? DASH.up : DASH.down }}>
               {up ? '+' : '−'}
-              {formatNaira(changeMagnitude)} ({Math.abs(changePct).toFixed(2)}%)
+              {formatUsd(changeMagnitude)} ({Math.abs(changePct).toFixed(2)}%)
             </span>{' '}
             <span style={{ color: DASH.inkMuted }}>Today</span>
           </p>
@@ -172,7 +172,7 @@ export const PortfolioValueCard = ({
                       color: DASH.ink,
                     }}
                     labelFormatter={() => ''}
-                    formatter={(v) => [formatNaira(v as number), 'Value']}
+                    formatter={(v) => [formatUsd(v as number), 'Value']}
                   />
                   <Area
                     type="monotone"

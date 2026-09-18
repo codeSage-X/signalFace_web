@@ -20,12 +20,12 @@ import {
 import {
   formatSignalFaceCoins,
   inviteLink as buildInviteLink,
-  nairaToSignalFaceCoins,
+  usdToSignalFaceCoins,
 } from '@/lib/utils';
 import { useAuth, useToast } from '@/lib/stores';
 
 const fmtCoins = (value: string | number) =>
-  formatSignalFaceCoins(nairaToSignalFaceCoins(value));
+  formatSignalFaceCoins(usdToSignalFaceCoins(value));
 
 /** "in 3h" / "in 12m" — how long until a cooldown lifts. */
 function untilReady(iso: string) {

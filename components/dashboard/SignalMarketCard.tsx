@@ -12,19 +12,19 @@ export const money = (raw: string | number) => {
     : '—';
 };
 
-export const naira = (raw: string | number) => {
+export const usd = (raw: string | number) => {
   const n = Number(raw);
   return Number.isFinite(n)
-    ? `₦${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    ? `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : '—';
 };
 
 export const compact = (raw: string | number) => {
   const n = Number(raw);
   if (!Number.isFinite(n)) return '—';
-  if (Math.abs(n) >= 1_000_000) return `₦${(n / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1_000) return `₦${(n / 1_000).toFixed(1)}K`;
-  return naira(n);
+  if (Math.abs(n) >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+  return usd(n);
 };
 
 /**
@@ -63,7 +63,7 @@ export const SignalMarketCard = ({
 
         <div className="text-right flex-shrink-0">
           <p className="text-xs text-muted-foreground">Current Price</p>
-          <p className="text-lg font-bold text-primary">{naira(signal.price)}</p>
+          <p className="text-lg font-bold text-primary">{usd(signal.price)}</p>
         </div>
       </div>
 

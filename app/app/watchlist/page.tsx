@@ -13,7 +13,7 @@ import {
   Users,
 } from 'lucide-react';
 import { UserAvatar } from '@/components/UserAvatar';
-import { naira } from '@/components/dashboard/SignalMarketCard';
+import { usd } from '@/components/dashboard/SignalMarketCard';
 import { signalsApi, type SignalListItem } from '@/lib/api';
 import { useToast } from '@/lib/stores';
 
@@ -63,7 +63,7 @@ const SignalRow = ({
       <div className="grid grid-cols-3 gap-3 text-sm sm:min-w-[360px]">
         <div>
           <p className="text-xs text-muted-foreground">Price</p>
-          <p className="font-semibold text-primary">{naira(signal.price)}</p>
+          <p className="font-semibold text-primary">{usd(signal.price)}</p>
         </div>
         <div>
           <p className="text-xs text-muted-foreground">24h</p>

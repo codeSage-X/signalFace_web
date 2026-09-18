@@ -5,7 +5,7 @@ import NextLink from 'next/link';
 import { BarChart3, Coins, Gift, Sparkles, Users } from 'lucide-react';
 import { realmsApi, type CreatorDashboard, type DashboardRange } from '@/lib/api';
 import { useProfileMode } from '@/lib/stores';
-import { formatNaira, formatSignalFaceCoins, nairaToSignalFaceCoins } from '@/lib/utils';
+import { formatSignalFaceCoins, formatUsd, usdToSignalFaceCoins } from '@/lib/utils';
 import { useProfileSwitch } from '@/hooks/useCreatorProfile';
 import { DASH } from '@/components/dashboard/theme';
 import { PortfolioValueCard, type Range } from '@/components/dashboard/PortfolioValueCard';
@@ -209,14 +209,14 @@ export default function CreatorDashboardPage() {
           />
           <StatTile
             label="Signal Price"
-            value={formatNaira(signal.price)}
+            value={formatUsd(signal.price)}
             sub={`${signal.priceChangePct >= 0 ? '+' : '−'}${Math.abs(signal.priceChangePct).toFixed(2)}%`}
             subTone={signal.priceChangePct >= 0 ? 'up' : 'down'}
             icon={Coins}
           />
           <StatTile
             label="Total Volume"
-            value={formatNaira(totals.volume)}
+            value={formatUsd(totals.volume)}
             sub={
               totals.volumeChangePct > 0
                 ? `+${totals.volumeChangePct.toFixed(2)}% in 24h`
@@ -227,8 +227,8 @@ export default function CreatorDashboardPage() {
           />
           <StatTile
             label="Rewards Earned"
-            value={formatSignalFaceCoins(nairaToSignalFaceCoins(totals.rewards))}
-            sub={`${formatNaira(totals.rewards)} equivalent`}
+            value={formatSignalFaceCoins(usdToSignalFaceCoins(totals.rewards))}
+            sub={`${formatUsd(totals.rewards)} equivalent`}
             icon={Gift}
           />
         </div>

@@ -379,6 +379,7 @@ export interface WalletHolding {
 
 export interface WalletOverview {
   pointsBalance: string;
+  currency: 'USD';
   holdings: WalletHolding[];
   totalValue: string;
   change24h: number;
@@ -447,6 +448,11 @@ export interface WalletTransaction {
   externalRef: string | null;
   tradeId: string | null;
   createdAt: string;
+  currency: 'USD';
+  paymentAmount: string | null;
+  paymentCurrency: string | null;
+  fxRate: string | null;
+  fxQuotedAt: string | null;
 }
 
 export type KycStatus =
@@ -580,7 +586,11 @@ export const signalsApi = {
   list: () => request<SignalListItem[]>('/signals'),
   buy: (
     id: string,
-    body: { quantity: number; paymentMethod?: 'balance' | 'flutterwave' },
+    body: {
+      quantity: number;
+      paymentMethod?: 'balance' | 'flutterwave';
+      paymentCurrency?: string;
+    },
   ) =>
     request<SignalPurchaseResult>(`/signals/${encodeURIComponent(id)}/buy`, {
       method: 'POST',
@@ -622,8 +632,15 @@ export const walletApi = {
   getMe: () => request<WalletOverview>('/wallet/me'),
   transactions: (cursor?: string | null, limit?: number) =>
     request<Page<WalletTransaction>>(`/wallet/transactions${pageQuery(cursor, limit)}`),
-  deposit: (body: { amount: number; note?: string }) =>
-    request<{ txRef: string; url: string | null }>('/wallet/deposit', {
+  deposit: (body: { amount: number; paymentCurrency?: string; note?: string }) =>
+    request<{
+      txRef: string;
+      url: string | null;
+      usdAmount: string;
+      paymentAmount: string;
+      paymentCurrency: string;
+      fxRate: string;
+    }>('/wallet/deposit', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -633,7 +650,7 @@ export const walletApi = {
       recipientTransactionId: string;
       recipient: { id: string; username: string; displayName: string };
       amount: string;
-      amountNaira: string;
+      amountUsd: string;
       balance: string;
     }>('/wallet/send', {
       method: 'POST',
