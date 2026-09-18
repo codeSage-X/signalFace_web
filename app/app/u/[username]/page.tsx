@@ -19,6 +19,7 @@ import { useAuth, useToast } from '@/lib/stores';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { PostDetailModal } from '@/components/social/PostDetailModal';
 import { FollowersFollowingModal } from '@/components/social/FollowersFollowingModal';
+import { ModeratedMedia } from '@/components/social/ModeratedMedia';
 
 const PAGE_SIZE = 12;
 
@@ -442,7 +443,9 @@ function ProfilePostCard({
       type="button"
       aria-label={`Open post ${index + 1}`}
     >
-      {kind === 'image' && preview ? (
+      {post.moderation !== 'VISIBLE' ? (
+        <ModeratedMedia />
+      ) : kind === 'image' && preview ? (
         <img src={preview} alt="" className="absolute inset-0 w-full h-full object-cover" />
       ) : kind === 'video' && preview ? (
         <video

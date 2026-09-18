@@ -878,6 +878,8 @@ export interface FeedPost {
   bookmarkCount: number;
   repostCount: number;
   pinned: boolean;
+  moderation: 'VISIBLE' | 'CENSORED' | 'REMOVED';
+  moderationNote: string | null;
   realmId: string | null;
   /** Non-null on realm posts — credit the page rather than `author`. */
   realm: PostRealm | null;

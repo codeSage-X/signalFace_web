@@ -55,6 +55,7 @@ import {
   nairaToSignalFaceCoins,
 } from '@/lib/utils';
 import { FollowersFollowingModal } from '@/components/social/FollowersFollowingModal';
+import { ModeratedMedia } from '@/components/social/ModeratedMedia';
 import { naira } from '@/components/dashboard/SignalMarketCard';
 
 const MAX_PINNED_POSTS = 3;
@@ -1183,8 +1184,10 @@ function PostGridCard({
       }
       className="relative group cursor-pointer rounded-lg overflow-hidden aspect-[9/16] bg-gradient-to-br from-[#1A1424] to-[#12101A] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
-      {/* Media, or a gradient card carrying the text */}
-      {kind === 'image' && preview ? (
+      {/* Media, or a deliberate policy placeholder for a hidden post. */}
+      {post.moderation !== 'VISIBLE' ? (
+        <ModeratedMedia />
+      ) : kind === 'image' && preview ? (
         <img src={preview} alt="" className="absolute inset-0 w-full h-full object-cover" />
       ) : kind === 'video' && post.coverUrl ? (
         // The author picked this frame, so it beats whatever the decoder would
@@ -1244,7 +1247,7 @@ function PostGridCard({
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
 
       {variant === 'own' && post.isMine && (
-        <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute z-20 bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {/* These sit inside the card, which now opens the viewer — without
               stopping the click, pinning would also open the post. */}
           <button

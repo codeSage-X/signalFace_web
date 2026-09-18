@@ -26,6 +26,7 @@ import { useRecentSearches, useToast } from '@/lib/stores';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { ImmersiveFeed } from '@/components/feed/ImmersiveFeed';
 import { PeopleYouMayKnow } from '@/components/social/PeopleYouMayKnow';
+import { ModeratedMedia } from '@/components/social/ModeratedMedia';
 
 const TABS = ['Top', 'Users', 'Videos', 'Pages'] as const;
 type Tab = (typeof TABS)[number];
@@ -442,7 +443,9 @@ function PostTile({ post, onOpen }: { post: FeedPost; onOpen: () => void }) {
       onClick={onOpen}
       className="relative rounded-lg overflow-hidden aspect-[9/16] bg-gradient-to-br from-[#1A1424] to-[#12101A] group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
-      {post.kind === 'video' && post.coverUrl ? (
+      {post.moderation !== 'VISIBLE' ? (
+        <ModeratedMedia />
+      ) : post.kind === 'video' && post.coverUrl ? (
         // The author's chosen cover, and cheaper than a <video> per tile.
         <img src={post.coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
       ) : post.kind === 'video' && preview ? (
