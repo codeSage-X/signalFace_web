@@ -1,635 +1,235 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, Loader2, MapPin, MessageCircle, Plus, Search, ShoppingBag, Store } from 'lucide-react';
 import {
-  Briefcase,
-  LineChart,
-  Loader2,
-  RefreshCw,
-  Search,
-  ShoppingBag,
-  Tag,
-  TrendingUp,
-} from 'lucide-react';
-import { UserAvatar } from '@/components/UserAvatar';
-import { StatCard } from '@/components/dashboard/StatCard';
-import {
-  SignalMarketCard,
-  compact,
-  usd,
-} from '@/components/dashboard/SignalMarketCard';
-import {
-  marketApi,
-  p2pApi,
-  signalsApi,
-  walletApi,
-  type MarketOverview,
-  type P2PListing,
-  type SignalListItem,
-  type WalletOverview,
+  marketApi, type MarketplaceCategory, type MarketplaceListing, type MarketplaceOrder,
+  type MarketplaceOrderInput, type MarketplaceOrderStatus, type MarketplaceShopType,
+  type MarketplaceStorefront,
 } from '@/lib/api';
 import { useAuth, useToast } from '@/lib/stores';
-import { formatSignalFaceCoins, usdToSignalFaceCoins } from '@/lib/utils';
-import { BuySignalModal } from '@/components/trading/BuySignalModal';
+import { useMarketplacePage } from '@/hooks/useMarketplacePage';
+import { ProductCard } from '@/components/market/ProductCard';
+import { ProductDetail } from '@/components/market/ProductDetail';
+import { SellModal } from '@/components/market/SellModal';
+import { ShopRegistration } from '@/components/market/ShopRegistration';
+import { OrderCard } from '@/components/market/OrderCard';
+import { CATEGORIES, SHOP_TYPES, messageHref, money, shopTypeLabel } from '@/components/market/market-utils';
 
-const P2P_PAGE_SIZE = 30;
+const VIEWS = [
+  { value: 'browse', label: 'Items' }, { value: 'shops', label: 'Shops' },
+  { value: 'orders', label: 'My orders' }, { value: 'selling', label: 'My shop' },
+] as const;
+type View = typeof VIEWS[number]['value'];
 
-function pctLabel(value: number) {
-  if (!Number.isFinite(value)) return 'Market price';
-  if (value === 0) return 'At market';
-  return `${value > 0 ? '+' : ''}${value.toFixed(2)}% vs market`;
+function Loading() { return <div className="flex justify-center py-16" role="status" aria-label="Loading"><Loader2 className="animate-spin text-primary" /></div>; }
+function ErrorNotice({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return <div role="alert" className="my-5 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm"><p>{message}</p><button onClick={onRetry} className="mt-2 font-semibold text-primary">Try again</button></div>;
 }
-
-function ListingCard({
-  listing,
-  busy,
-  onBuy,
-}: {
-  listing: P2PListing;
-  busy: boolean;
-  onBuy: (listing: P2PListing) => void;
-}) {
-  const premium = listing.spreadPct > 0;
-  const discount = listing.spreadPct < 0;
-
-  return (
-    <article className="glass-card glass-hover rounded-2xl p-4 sm:p-5 flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
-        <Link href={`/app/u/${listing.creatorUsername}`} className="flex items-center gap-3 min-w-0">
-          <UserAvatar src={listing.creatorAvatarUrl} name={listing.creatorName} size="md" />
-          <span className="min-w-0">
-            <span className="block font-semibold text-foreground truncate">
-              {listing.signalTitle}
-            </span>
-            <span className="block text-sm text-muted-foreground truncate">
-              {listing.creatorName} · @{listing.creatorUsername}
-            </span>
-          </span>
-        </Link>
-        <span
-          className={`text-xs font-semibold flex-shrink-0 ${
-            discount ? 'text-up' : premium ? 'text-down' : 'text-muted-foreground'
-          }`}
-        >
-          {pctLabel(listing.spreadPct)}
-        </span>
-      </div>
-
-      <dl className="grid grid-cols-2 gap-3 text-sm">
-        <div className="glass-tile rounded-xl p-3">
-          <dt className="text-xs text-muted-foreground">Quantity</dt>
-          <dd className="mt-1 font-bold text-foreground">
-            {Number(listing.quantity).toLocaleString(undefined, { maximumFractionDigits: 4 })}
-          </dd>
-        </div>
-        <div className="glass-tile rounded-xl p-3">
-          <dt className="text-xs text-muted-foreground">Ask Price</dt>
-          <dd className="mt-1 font-bold text-primary">{usd(listing.pricePerUnit)}</dd>
-        </div>
-        <div className="glass-tile rounded-xl p-3">
-          <dt className="text-xs text-muted-foreground">Market Price</dt>
-          <dd className="mt-1 font-bold text-foreground">{usd(listing.currentSignalPrice)}</dd>
-        </div>
-        <div className="glass-tile rounded-xl p-3">
-          <dt className="text-xs text-muted-foreground">Total</dt>
-          <dd className="mt-1 font-bold text-foreground">{usd(listing.total)}</dd>
-        </div>
-      </dl>
-
-      <div className="mt-auto flex items-center justify-between gap-3 border-t border-white/[0.06] pt-4">
-        <Link href={`/app/u/${listing.sellerUsername}`} className="min-w-0 flex items-center gap-2">
-          <UserAvatar src={listing.sellerAvatarUrl} name={listing.sellerName} size="sm" />
-          <span className="text-xs text-muted-foreground truncate">
-            Seller @{listing.sellerUsername}
-          </span>
-        </Link>
-        <button
-          type="button"
-          onClick={() => onBuy(listing)}
-          disabled={busy || listing.isMine}
-          className="inline-flex items-center justify-center gap-2 rounded-xl brand-gradient px-4 py-2.5
-            text-sm font-semibold text-white hover:brightness-110 transition disabled:opacity-60"
-        >
-          {busy ? <Loader2 size={15} className="animate-spin" /> : <ShoppingBag size={15} />}
-          {listing.isMine ? 'Your Listing' : 'Buy'}
-        </button>
-      </div>
-    </article>
-  );
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">{children}</p>;
 }
 
 function MarketPageInner() {
-  const routeSearchParams = useSearchParams();
-  const { isAuthenticated, setAuthModalOpen } = useAuth();
+  const router = useRouter();
+  const params = useSearchParams();
+  const shopId = params.get('shop');
+  const { user, isAuthenticated, setAuthModalOpen } = useAuth();
   const { addToast } = useToast();
-  const [marketTab, setMarketTab] = useState<'signals' | 'p2p'>(
-    routeSearchParams.get('tab') === 'p2p' ? 'p2p' : 'signals',
-  );
-  const [search, setSearch] = useState('');
-  const [overview, setOverview] = useState<MarketOverview | null>(null);
-  const [signals, setSignals] = useState<SignalListItem[]>([]);
-  const [buyingSignal, setBuyingSignal] = useState<SignalListItem | null>(null);
-  const [marketLoading, setMarketLoading] = useState(true);
-  const [p2pQuery, setP2pQuery] = useState('');
-  const [listings, setListings] = useState<P2PListing[]>([]);
-  const [myListings, setMyListings] = useState<P2PListing[]>([]);
-  const [wallet, setWallet] = useState<WalletOverview | null>(null);
-  const [p2pLoading, setP2pLoading] = useState(true);
-  const [busyListingId, setBusyListingId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [selectedSignalId, setSelectedSignalId] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [pricePerUnit, setPricePerUnit] = useState('');
+  const [view, setView] = useState<View>('browse');
+  const [query, setQuery] = useState('');
+  const [submittedQuery, setSubmittedQuery] = useState('');
+  const [category, setCategory] = useState<MarketplaceCategory | ''>('');
+  const [shopType, setShopType] = useState<MarketplaceShopType | ''>('');
+  const [storefront, setStorefront] = useState<MarketplaceStorefront | null>(null);
+  const [storefrontLoading, setStorefrontLoading] = useState(false);
+  const [storefrontError, setStorefrontError] = useState('');
+  const [myShop, setMyShop] = useState<MarketplaceStorefront | null>(null);
+  const [mine, setMine] = useState<MarketplaceListing[]>([]);
+  const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
+  const [incoming, setIncoming] = useState<MarketplaceOrder[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const [selected, setSelected] = useState<MarketplaceListing | null>(null);
+  const [detailError, setDetailError] = useState('');
+  const [sellOpen, setSellOpen] = useState(false);
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const actionPending = useRef(false);
+  const selectionRequest = useRef(0);
+
+  const fetchListings = useCallback((cursor?: string) => {
+    if (view !== 'browse' && !shopId) return Promise.resolve({ items: [], nextCursor: null });
+    return marketApi.listProducts({ q: submittedQuery, category, shopType: shopId ? '' : shopType, shopId: shopId ?? undefined, limit: 30, cursor });
+  }, [submittedQuery, category, shopType, shopId, view, revision, user?.id]);
+  const products = useMarketplacePage(fetchListings);
+  const fetchShops = useCallback((cursor?: string) => {
+    if (view !== 'shops' || shopId) return Promise.resolve({ items: [], nextCursor: null });
+    return marketApi.listShops({ q: submittedQuery, shopType, cursor });
+  }, [view, shopId, submittedQuery, shopType, revision, user?.id]);
+  const shops = useMarketplacePage(fetchShops);
 
   useEffect(() => {
-    setMarketTab(routeSearchParams.get('tab') === 'p2p' ? 'p2p' : 'signals');
-  }, [routeSearchParams]);
-
+    setQuery(''); setSubmittedQuery(''); setCategory('');
+    if (shopId) setView('browse');
+  }, [shopId]);
   useEffect(() => {
     let cancelled = false;
-
-    Promise.allSettled([marketApi.getOverview(), signalsApi.list()])
-      .then(([o, s]) => {
-        if (cancelled) return;
-        if (o.status === 'fulfilled') setOverview(o.value);
-        if (s.status === 'fulfilled') setSignals(s.value);
-        if (o.status === 'rejected' && s.status === 'rejected') {
-          addToast({
-            message: 'Could not load the market right now.',
-            type: 'error',
-            duration: 4000,
-          });
+    setStorefront(null); setStorefrontError('');
+    if (!shopId) { setStorefrontLoading(false); return; }
+    setStorefrontLoading(true);
+    marketApi.getShop(shopId).then((shop) => { if (!cancelled) setStorefront(shop); })
+      .catch((err) => { if (!cancelled) setStorefrontError(err instanceof Error ? err.message : 'Could not load shop.'); })
+      .finally(() => { if (!cancelled) setStorefrontLoading(false); });
+    return () => { cancelled = true; };
+  }, [shopId, revision, user?.id]);
+  useEffect(() => {
+    let cancelled = false;
+    setMine([]); setOrders([]); setIncoming([]); setActivityError('');
+    if (!isAuthenticated || (view !== 'orders' && view !== 'selling')) { setActivityLoading(false); return; }
+    setActivityLoading(true);
+    async function load() {
+      try {
+        if (view === 'orders') {
+          const result = await marketApi.myOrders();
+          if (!cancelled) setOrders(result.items);
+        } else {
+          const shop = await marketApi.myShop();
+          if (cancelled) return;
+          setMyShop(shop);
+          if (shop) {
+            const listings = await marketApi.myProducts();
+            if (cancelled) return;
+            setMine(listings.items);
+          }
+          // Existing sellers can still resolve orders while registering their shop.
+          const sales = await marketApi.sellerOrders();
+          if (!cancelled) setIncoming(sales.items);
         }
-      })
-      .finally(() => {
-        if (!cancelled) setMarketLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [addToast]);
-
-  const loadP2p = useCallback(async () => {
-    const listingPage = await p2pApi.list({ q: p2pQuery, limit: P2P_PAGE_SIZE });
-    setListings(listingPage.items);
-
-    if (!isAuthenticated) {
-      setWallet(null);
-      setMyListings([]);
-      return;
+      } catch (err) { if (!cancelled) setActivityError(err instanceof Error ? err.message : 'Could not load activity.'); }
+      finally { if (!cancelled) setActivityLoading(false); }
     }
+    void load();
+    return () => { cancelled = true; };
+  }, [isAuthenticated, user?.id, view, revision]);
+  useEffect(() => { setMyShop(null); setSellOpen(false); setRegisterOpen(false); }, [user?.id]);
+  useEffect(() => () => { selectionRequest.current++; }, []);
 
-    const walletResult = await walletApi.getMe();
-    const mineResult = await p2pApi.mine();
-    setWallet(walletResult);
-    setMyListings(mineResult.items);
-  }, [isAuthenticated, p2pQuery]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setP2pLoading(true);
-
-    loadP2p()
-      .catch((err) => {
-        if (cancelled) return;
-        addToast({
-          message: err instanceof Error ? err.message : 'Could not load P2P listings.',
-          type: 'error',
-          duration: 4000,
-        });
-      })
-      .finally(() => {
-        if (!cancelled) setP2pLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [addToast, loadP2p]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return signals;
-    return signals.filter(
-      (s) =>
-        s.creatorName.toLowerCase().includes(q) ||
-        s.creatorUsername.toLowerCase().includes(q),
-    );
-  }, [signals, search]);
-
-  const holdings = wallet?.holdings ?? [];
-  const selectedHolding = holdings.find((holding) => holding.signalId === selectedSignalId);
-  const availableBalance = Number(wallet?.pointsBalance ?? 0);
-  const activeMine = useMemo(
-    () => myListings.filter((listing) => listing.status === 'ACTIVE'),
-    [myListings],
-  );
-
-  useEffect(() => {
-    if (!selectedHolding) return;
-    if (!pricePerUnit) setPricePerUnit(selectedHolding.currentPrice);
-  }, [pricePerUnit, selectedHolding]);
-
-  const refreshSignals = () =>
-    signalsApi
-      .list()
-      .then(setSignals)
-      .catch(() => {});
-
-  const createListing = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!isAuthenticated) {
-      setAuthModalOpen(true);
-      return;
-    }
-
-    const qty = Number(quantity);
-    const price = Number(pricePerUnit);
-    if (!selectedSignalId || !Number.isFinite(qty) || qty <= 0 || !Number.isFinite(price) || price <= 0) {
-      addToast({ message: 'Select a holding, quantity, and price.', type: 'error', duration: 3500 });
-      return;
-    }
-
-    setCreating(true);
+  const refresh = () => setRevision((value) => value + 1);
+  const toastError = (error: unknown) => addToast({ message: error instanceof Error ? error.message : 'Something went wrong. Please try again.', type: 'error', duration: 4500 });
+  function changeView(next: View) {
+    if ((next === 'orders' || next === 'selling') && !isAuthenticated) { setAuthModalOpen(true); return; }
+    if (shopId) router.push('/app/market');
+    setView(next); setQuery(''); setSubmittedQuery(''); setCategory('');
+  }
+  function openShop(id: string) { selectionRequest.current++; setSelected(null); router.push(`/app/market?shop=${encodeURIComponent(id)}`); }
+  function message(username: string) {
+    selectionRequest.current++; setSelected(null);
+    if (!isAuthenticated) { setAuthModalOpen(true); return; }
+    router.push(messageHref(username));
+  }
+  async function openProduct(listing: MarketplaceListing) {
+    const request = ++selectionRequest.current;
+    setDetailError(''); setSelected(listing);
     try {
-      await p2pApi.create({ signalId: selectedSignalId, quantity: qty, pricePerUnit: price });
-      setQuantity('');
-      setPricePerUnit('');
-      await loadP2p();
-      addToast({ message: 'P2P listing is live.', type: 'success', duration: 3500 });
-    } catch (err) {
-      addToast({
-        message: err instanceof Error ? err.message : 'Could not create listing.',
-        type: 'error',
-        duration: 4500,
-      });
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const buyListing = async (listing: P2PListing) => {
-    if (!isAuthenticated) {
-      setAuthModalOpen(true);
-      return;
-    }
-
-    setBusyListingId(listing.id);
+      const fresh = await marketApi.getProduct(listing.id);
+      if (request === selectionRequest.current) setSelected(fresh);
+    } catch (err) { if (request === selectionRequest.current) setDetailError(err instanceof Error ? err.message : 'Could not refresh this item.'); }
+  }
+  async function openSell() {
+    if (!isAuthenticated) { setAuthModalOpen(true); return; }
+    if (actionPending.current) return;
+    actionPending.current = true; setBusy(true);
     try {
-      await p2pApi.buy(listing.id, {});
-      await loadP2p();
-      addToast({
-        message: `You bought ${Number(listing.quantity).toLocaleString()} ${listing.signalTitle}.`,
-        type: 'success',
-        duration: 3500,
-      });
-    } catch (err) {
-      addToast({
-        message: err instanceof Error ? err.message : 'Could not buy listing.',
-        type: 'error',
-        duration: 4500,
-      });
-    } finally {
-      setBusyListingId(null);
-    }
-  };
-
-  const cancelListing = async (listing: P2PListing) => {
-    setBusyListingId(listing.id);
+      const shop = await marketApi.myShop(); setMyShop(shop);
+      if (shop) setSellOpen(true); else setRegisterOpen(true);
+    } catch (err) { toastError(err); }
+    finally { actionPending.current = false; setBusy(false); }
+  }
+  async function buy(input: MarketplaceOrderInput) {
+    if (!isAuthenticated) { selectionRequest.current++; setSelected(null); setAuthModalOpen(true); return; }
+    if (!selected || actionPending.current) return;
+    actionPending.current = true; setBusy(true); setDetailError(''); selectionRequest.current++;
     try {
-      await p2pApi.cancel(listing.id);
-      await loadP2p();
-      addToast({ message: 'Listing canceled and Signal returned.', type: 'success', duration: 3500 });
-    } catch (err) {
-      addToast({
-        message: err instanceof Error ? err.message : 'Could not cancel listing.',
-        type: 'error',
-        duration: 4500,
-      });
-    } finally {
-      setBusyListingId(null);
-    }
-  };
+      await marketApi.buyProduct(selected.id, input);
+      setSelected(null); if (shopId) router.push('/app/market'); setView('orders'); refresh();
+      addToast({ message: 'Order placed. Open Messenger from your order to arrange the details.', type: 'success', duration: 4500 });
+    } catch (err) { setDetailError(err instanceof Error ? err.message : 'Could not place order.'); }
+    finally { actionPending.current = false; setBusy(false); }
+  }
+  async function updateProduct(change: () => Promise<MarketplaceListing>) {
+    if (actionPending.current) return;
+    actionPending.current = true; setBusy(true); setDetailError(''); selectionRequest.current++;
+    try {
+      const updated = await change(); setSelected(updated); refresh();
+    } catch (err) { setDetailError(err instanceof Error ? err.message : 'Could not update listing.'); }
+    finally { actionPending.current = false; setBusy(false); }
+  }
+  async function updateOrder(id: string, status: Exclude<MarketplaceOrderStatus, 'PENDING'>) {
+    if (actionPending.current) return;
+    if (status === 'COMPLETED' && !window.confirm('Confirm that this order has been handed over and payment is settled?')) return;
+    if (status === 'CANCELED' && !window.confirm('Cancel this order and return its reserved items to available stock?')) return;
+    actionPending.current = true; setBusy(true);
+    try { await marketApi.setOrderStatus(id, status); refresh(); }
+    catch (err) { toastError(err); }
+    finally { actionPending.current = false; setBusy(false); }
+  }
+  const isCatalog = !!shopId || view === 'browse' || view === 'shops';
+  const catalog = view === 'shops' && !shopId ? shops : products;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 lg:space-y-8 max-w-7xl mx-auto">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Marketplace</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Discover creator Signals or trade directly with other users.
-        </p>
-      </div>
-
-      <div
-        className="relative grid grid-cols-2 overflow-hidden border-b border-white/10 bg-white/[0.03] shadow-lg shadow-black/20"
-        role="tablist"
-        aria-label="Marketplace sections"
-      >
-        <span
-          aria-hidden
-          className={`absolute inset-y-0 left-0 w-1/2 bg-primary/10 transition-transform duration-300 ease-out ${
-            marketTab === 'p2p' ? 'translate-x-full' : 'translate-x-0'
-          }`}
-        />
-        <span
-          aria-hidden
-          className={`absolute bottom-0 left-0 h-0.5 w-1/2 bg-primary transition-transform duration-300 ease-out ${
-            marketTab === 'p2p' ? 'translate-x-full' : 'translate-x-0'
-          }`}
-        />
-        {(['signals', 'p2p'] as const).map((nextTab) => (
-          <button
-            key={nextTab}
-            type="button"
-            role="tab"
-            aria-selected={marketTab === nextTab}
-            onClick={() => setMarketTab(nextTab)}
-            className={`relative z-10 flex items-center justify-center px-3 py-4 text-sm font-semibold uppercase tracking-wide transition-colors ${
-              marketTab === nextTab
-                ? 'text-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {nextTab === 'signals' ? 'Signals' : 'P2P'}
-          </button>
-        ))}
-      </div>
-
-      {marketTab === 'signals' ? (
-        <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <StatCard
-              label="Active Signals"
-              value={overview?.totalSignals ?? signals.length}
-              icon={TrendingUp}
-            />
-            <StatCard label="Market Cap" value={compact(overview?.totalMarketValue ?? 0)} />
-            <StatCard label="24h Volume" value={compact(overview?.tradingVolume24h ?? 0)} />
-            <StatCard
-              label="Traders"
-              value={(overview?.activeTraders ?? 0).toLocaleString()}
-            />
-          </div>
-
-          <div className="relative">
-            <Search
-              size={17}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-            />
-            <input
-              type="text"
-              placeholder="Search signals by creator name or handle..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 rounded-2xl text-sm text-foreground placeholder-muted-foreground
-                glass-card border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-
-          <div>
-            <h2 className="text-lg sm:text-xl font-bold text-foreground mb-4">
-              Available Signals
-              {!marketLoading && filtered.length !== signals.length && ` (${filtered.length})`}
-            </h2>
-
-            {marketLoading ? (
-              <div className="flex justify-center py-16">
-                <Loader2 size={22} className="animate-spin text-muted-foreground" />
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="glass-card rounded-2xl p-8 sm:p-10 text-center">
-                <LineChart size={28} className="mx-auto text-muted-foreground" />
-                <p className="mt-3 font-semibold text-card-foreground">
-                  {search ? 'No signals match that search' : 'No signals listed yet'}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {search
-                    ? 'Try a different creator name or handle.'
-                    : 'A Signal is created when a creator is approved.'}
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
-                {filtered.map((signal) => (
-                  <SignalMarketCard key={signal.id} signal={signal} onTrade={setBuyingSignal} />
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="flex justify-end">
-            <div className="glass-chip rounded-xl px-4 py-2.5 text-sm text-muted-foreground">
-              Available to trade{' '}
-              <span className="font-bold text-foreground">
-                {formatSignalFaceCoins(usdToSignalFaceCoins(availableBalance))}
-              </span>
-              <span className="ml-1">({usd(availableBalance)} equivalent)</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_22rem] gap-4 lg:gap-5">
-            <section className="space-y-4">
-              <div className="relative">
-                <Search
-                  size={17}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
-                />
-                <input
-                  type="text"
-                  value={p2pQuery}
-                  onChange={(event) => setP2pQuery(event.target.value)}
-                  placeholder="Search listings by Signal, creator, or seller..."
-                  className="w-full pl-11 pr-4 py-3 rounded-2xl text-sm text-foreground placeholder-muted-foreground
-                    glass-card border border-white/10 focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              {p2pLoading ? (
-                <div className="flex justify-center py-16">
-                  <Loader2 size={22} className="animate-spin text-muted-foreground" />
-                </div>
-              ) : listings.length === 0 ? (
-                <div className="glass-card rounded-2xl p-8 sm:p-10 text-center">
-                  <ShoppingBag size={28} className="mx-auto text-muted-foreground" />
-                  <p className="mt-3 font-semibold text-card-foreground">No P2P listings yet</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Be the first to list a Signal from your holdings.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-                  {listings.map((listing) => (
-                    <ListingCard
-                      key={listing.id}
-                      listing={listing}
-                      busy={busyListingId === listing.id}
-                      onBuy={buyListing}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <aside className="space-y-4">
-              <section className="glass-card rounded-2xl p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Tag size={18} className="text-primary" />
-                  <h2 className="text-lg font-bold text-foreground">Sell a Signal</h2>
-                </div>
-
-                {!isAuthenticated ? (
-                  <button
-                    type="button"
-                    onClick={() => setAuthModalOpen(true)}
-                    className="w-full rounded-xl brand-gradient px-4 py-3 text-sm font-semibold text-white"
-                  >
-                    Sign in to sell
-                  </button>
-                ) : holdings.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">
-                    You do not have any available Signals to list.
-                    <button
-                      type="button"
-                      onClick={() => setMarketTab('signals')}
-                      className="block mt-3 text-primary font-semibold hover:underline"
-                    >
-                      Browse Signals
-                    </button>
-                  </div>
-                ) : (
-                  <form onSubmit={createListing} className="space-y-3">
-                    <select
-                      value={selectedSignalId}
-                      onChange={(event) => {
-                        const holding = holdings.find((h) => h.signalId === event.target.value);
-                        setSelectedSignalId(event.target.value);
-                        setPricePerUnit(holding?.currentPrice ?? '');
-                      }}
-                      className="w-full px-3 py-3 rounded-xl glass-input text-sm text-foreground"
-                    >
-                      <option value="">Select holding</option>
-                      {holdings.map((holding) => (
-                        <option key={holding.signalId} value={holding.signalId}>
-                          {holding.creatorName} · {Number(holding.quantity).toLocaleString()} available
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      min="0.0001"
-                      step="0.0001"
-                      value={quantity}
-                      onChange={(event) => setQuantity(event.target.value)}
-                      placeholder="Quantity to sell"
-                      className="w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
-                    />
-                    <input
-                      type="number"
-                      min="0.0001"
-                      step="0.0001"
-                      value={pricePerUnit}
-                      onChange={(event) => setPricePerUnit(event.target.value)}
-                      placeholder="Price per Signal"
-                      className="w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground"
-                    />
-                    {selectedHolding && (
-                      <p className="text-xs text-muted-foreground">
-                        Market price is {usd(selectedHolding.currentPrice)}. Listing reserves the
-                        quantity until it sells or you cancel.
-                      </p>
-                    )}
-                    <button
-                      type="submit"
-                      disabled={creating}
-                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl brand-gradient px-4 py-3
-                        text-sm font-semibold text-white hover:brightness-110 transition disabled:opacity-70"
-                    >
-                      {creating ? <Loader2 size={16} className="animate-spin" /> : <Tag size={16} />}
-                      Create Listing
-                    </button>
-                  </form>
-                )}
-              </section>
-
-              <section className="glass-card rounded-2xl p-5">
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-2">
-                    <Briefcase size={18} className="text-primary" />
-                    <h2 className="text-lg font-bold text-foreground">Your Listings</h2>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => void loadP2p()}
-                    className="h-8 w-8 rounded-lg glass-chip flex items-center justify-center hover:brightness-125 transition"
-                    aria-label="Refresh P2P listings"
-                  >
-                    <RefreshCw size={14} />
-                  </button>
-                </div>
-
-                {!isAuthenticated ? (
-                  <p className="text-sm text-muted-foreground">Sign in to manage your listings.</p>
-                ) : activeMine.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No active listings.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {activeMine.map((listing) => (
-                      <li key={listing.id} className="glass-tile rounded-xl p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-foreground truncate">
-                              {listing.signalTitle}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {Number(listing.quantity).toLocaleString(undefined, {
-                                maximumFractionDigits: 4,
-                              })}{' '}
-                              @ {usd(listing.pricePerUnit)}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => cancelListing(listing)}
-                            disabled={busyListingId === listing.id}
-                            className="text-xs font-semibold text-primary hover:underline disabled:opacity-60"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </aside>
-          </div>
-        </>
-      )}
-
-      <BuySignalModal
-        signal={buyingSignal}
-        onClose={() => setBuyingSignal(null)}
-        onPurchased={refreshSignals}
-      />
+    <div className="mx-auto max-w-[1440px] overflow-x-hidden px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+      <header className="flex flex-wrap items-center justify-between gap-4 lg:pr-52">
+        <div className="min-w-0"><h1 className="text-2xl font-bold sm:text-3xl">Shopping Mall</h1><p className="mt-1 text-sm text-muted-foreground">Discover plazas, stores, and supermarkets in your community.</p></div>
+        <button type="button" disabled={busy} onClick={openSell} className="brand-gradient flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"><Plus size={17} /> Sell an item</button>
+      </header>
+      <nav aria-label="Shopping Mall" className="mt-6 flex gap-5 overflow-x-auto border-b border-border">
+        {VIEWS.map((item) => <button key={item.value} type="button" onClick={() => changeView(item.value)} aria-current={!shopId && view === item.value ? 'page' : undefined} className={`shrink-0 border-b-2 px-1 pb-3 text-sm font-semibold ${!shopId && view === item.value ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'}`}>{item.label}</button>)}
+      </nav>
+      {shopId && <section className="mt-5">
+        <Link href="/app/market" className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft size={16} /> Back to Shopping Mall</Link>
+        {storefrontLoading ? <Loading /> : storefrontError ? <ErrorNotice message={storefrontError} onRetry={refresh} /> : storefront && <div className="rounded-xl border border-border bg-card p-5">
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">{shopTypeLabel(storefront.type)}</span>
+          <h2 className="mt-3 text-2xl font-bold">{storefront.name}</h2><p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{storefront.description}</p>
+          <p className="mt-3 flex items-center gap-1 text-xs text-muted-foreground"><MapPin size={14} /> {storefront.location} · {storefront.availableListings} available listings</p>
+          {!storefront.isMine && <button onClick={() => message(storefront.owner.username)} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-primary px-4 py-2 text-sm font-semibold text-primary"><MessageCircle size={16} /> Chat with seller</button>}
+        </div>}
+      </section>}
+      {isCatalog && <>
+        <form onSubmit={(event) => { event.preventDefault(); setSubmittedQuery(query.trim()); }} className="mt-5 flex gap-2">
+          <div className="relative min-w-0 flex-1"><Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input aria-label="Search Shopping Mall" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={view === 'shops' ? 'Search shops or locations' : 'Search items or locations'} className="glass-input h-11 w-full rounded-lg pl-10 pr-3 text-sm" /></div>
+          <button type="submit" aria-label="Search" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-foreground text-background"><Search size={18} /></button>
+        </form>
+        {!shopId && <div className="mt-3 flex flex-wrap gap-2">
+          {[{ value: '', label: 'All shops' }, ...SHOP_TYPES].map((item) => <button key={item.value} onClick={() => setShopType(item.value as MarketplaceShopType | '')} className={`rounded-full border px-3 py-2 text-xs font-semibold ${shopType === item.value ? 'border-primary bg-primary text-white' : 'border-border text-muted-foreground'}`}>{item.label}</button>)}
+        </div>}
+        {(view !== 'shops' || shopId) && <div className="mt-3 flex gap-2 overflow-x-auto pb-2">{CATEGORIES.map((item) => <button key={item.value} onClick={() => setCategory(item.value)} className={`shrink-0 rounded-full border px-3 py-2 text-xs font-semibold ${category === item.value ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}>{item.label}</button>)}</div>}
+        <h2 className="mt-6 mb-4 font-bold">{submittedQuery ? `Results for “${submittedQuery}”` : view === 'shops' && !shopId ? 'Find your next favourite shop' : shopId ? 'Available items' : 'Fresh finds'}</h2>
+        {catalog.error && <ErrorNotice message={catalog.error} onRetry={catalog.refresh} />}
+        {catalog.loading ? <Loading /> : view === 'shops' && !shopId ? (
+          shops.items.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{shops.items.map((shop) => <button key={shop.id} onClick={() => openShop(shop.id)} className="rounded-xl border border-border bg-card p-5 text-left hover:border-primary/50">
+            <span className="flex items-center justify-between gap-2"><Store size={24} className="text-primary" /><span className="rounded-full bg-muted px-2 py-1 text-xs">{shopTypeLabel(shop.type)}</span></span>
+            <h3 className="mt-3 truncate text-lg font-bold">{shop.name}</h3><p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{shop.description}</p><p className="mt-4 text-xs text-muted-foreground">{shop.location} · {shop.availableListings} available listings</p>
+          </button>)}</div> : !shops.error && <Empty>No shops match this search. Try another name or account type.</Empty>
+        ) : products.items.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{products.items.map((listing) => <ProductCard key={listing.id} listing={listing} onOpen={() => void openProduct(listing)} />)}</div> : !products.error && <Empty>No available items found. Try another search or visit again soon.</Empty>}
+        {catalog.nextCursor && <button onClick={() => void catalog.loadMore()} disabled={catalog.loadingMore} className="mx-auto mt-6 block rounded-lg border border-border px-5 py-3 text-sm font-semibold disabled:opacity-50">{catalog.loadingMore ? 'Loading…' : 'Show more'}</button>}
+      </>}
+      {!isCatalog && (!isAuthenticated ? <button onClick={() => setAuthModalOpen(true)} className="mt-6 rounded-lg border border-primary p-4 text-primary">Sign in to view your Shopping Mall account</button> : activityLoading ? <Loading /> : activityError ? <ErrorNotice message={activityError} onRetry={refresh} /> : <div className="mt-6 space-y-8">
+        <div className="flex justify-end"><button type="button" onClick={refresh} disabled={busy} className="text-sm font-semibold text-primary disabled:opacity-50">Refresh activity</button></div>
+        {view === 'orders' ? <section><h2 className="mb-4 flex items-center gap-2 font-bold"><ShoppingBag size={19} /> My orders</h2>{orders.length ? <div className="grid gap-4 lg:grid-cols-2">{orders.map((order) => <OrderCard key={order.id} order={order} busy={busy} onStatus={updateOrder} onMessage={message} onOpen={() => void openProduct(order.listing)} />)}</div> : <Empty>Your orders will appear here. Browse items to place your first order.</Empty>}</section> : <>
+          {myShop ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-5"><div><p className="text-xs font-semibold text-primary">{shopTypeLabel(myShop.type)}</p><h2 className="mt-1 text-xl font-bold">{myShop.name}</h2><p className="mt-1 text-sm text-muted-foreground">{myShop.location}</p></div><button onClick={() => openShop(myShop.id)} className="rounded-lg border border-border px-4 py-2 text-sm font-semibold">View storefront</button></div> : <div className="rounded-xl border border-primary/30 bg-primary/5 p-6"><h2 className="text-xl font-bold">Start selling in Shopping Mall</h2><p className="mt-2 text-sm text-muted-foreground">Create a Plaza, Store, or Supermarket account before publishing your items.</p><button onClick={() => setRegisterOpen(true)} className="brand-gradient mt-4 rounded-lg px-4 py-3 text-sm font-semibold text-white">Create seller account</button></div>}
+          <section><h2 className="mb-4 font-bold">Incoming orders</h2><p className="mb-4 text-sm text-muted-foreground">Chat with each buyer to agree on delivery or pickup. Mark completed after handover and payment.</p>{incoming.length ? <div className="grid gap-4 lg:grid-cols-2">{incoming.map((order) => <OrderCard key={order.id} order={order} selling busy={busy} onStatus={updateOrder} onMessage={message} onOpen={() => void openProduct(order.listing)} />)}</div> : <Empty>Orders from your customers will appear here.</Empty>}</section>
+          {myShop && <section><div className="mb-4 flex items-center justify-between"><h2 className="font-bold">Your listings</h2><button onClick={openSell} disabled={busy} className="text-sm font-semibold text-primary">Add item</button></div>{mine.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{mine.map((listing) => <button key={listing.id} onClick={() => void openProduct(listing)} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left"><img src={listing.imageUrls[0]} alt="" className="h-16 w-16 rounded-lg object-cover" /><span className="min-w-0"><span className="block truncate font-semibold">{listing.title}</span><span className="mt-1 block text-xs text-muted-foreground">{money(listing.price)} · {listing.stockQuantity} in stock</span><span className="mt-1 block text-xs capitalize text-primary">{listing.status.toLowerCase()}</span></span></button>)}</div> : <Empty>Your shop is ready. Add your first item to start selling.</Empty>}</section>}
+        </>}
+      </div>)}
+      {selected && <ProductDetail key={selected.id} listing={selected} busy={busy} error={detailError} onClose={() => { selectionRequest.current++; setSelected(null); }} onBuy={buy} onStatus={(status) => void updateProduct(() => marketApi.setProductStatus(selected.id, status))} onStock={(quantity) => void updateProduct(() => marketApi.setStock(selected.id, quantity))} onMessage={message} onShop={openShop} onSelect={(listing) => void openProduct(listing)} />}
+      {registerOpen && <ShopRegistration onClose={() => setRegisterOpen(false)} onCreated={(shop) => { setMyShop(shop); setRegisterOpen(false); setSellOpen(true); refresh(); }} />}
+      {sellOpen && myShop && <SellModal shop={myShop} onClose={() => setSellOpen(false)} onCreated={() => { setSellOpen(false); if (shopId) router.push('/app/market'); setView('selling'); refresh(); }} />}
     </div>
   );
 }
 
-export default function MarketPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex justify-center py-20">
-          <Loader2 size={22} className="animate-spin text-muted-foreground" />
-        </div>
-      }
-    >
-      <MarketPageInner />
-    </Suspense>
-  );
-}
+export default function MarketPage() { return <Suspense fallback={<Loading />}><MarketPageInner /></Suspense>; }

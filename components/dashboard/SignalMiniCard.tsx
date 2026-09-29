@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts';
 import { DASH } from './theme';
 import type { SeriesPoint } from '@/lib/series';
@@ -21,7 +23,7 @@ export interface MiniSignal {
 
 export const SignalMiniCard = ({ signal }: { signal: MiniSignal }) => {
   const up = signal.changePct >= 0;
-  const initial = signal.name.trim().charAt(0).toUpperCase() || '?';
+
 
   return (
     <div className="glass-violet glass-hover rounded-2xl p-4">
@@ -30,14 +32,9 @@ export const SignalMiniCard = ({ signal }: { signal: MiniSignal }) => {
         <div className="relative flex-shrink-0">
           <div
             className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold text-white"
-            style={{ backgroundImage: `linear-gradient(135deg, ${DASH.violet}, ${DASH.magenta})` }}
+
           >
-            {signal.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={signal.avatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              initial
-            )}
+            <UserAvatar src={signal.avatarUrl} name={signal.name} fill ring={false} />
           </div>
           <span
             className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"

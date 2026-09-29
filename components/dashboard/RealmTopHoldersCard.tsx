@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import NextLink from 'next/link';
 import { DASH } from './theme';
 import { formatUsd } from '@/lib/utils';
@@ -47,14 +49,9 @@ export const RealmTopHoldersCard = ({ holders }: { holders: HolderRow[] }) => (
 
             <NextLink
               href={`/app/u/${holder.username}`}
-              className="w-9 h-9 rounded-full overflow-hidden brand-gradient flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+              className="w-9 h-9 rounded-full overflow-hidden bg-black dark:bg-white flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
             >
-              {holder.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={holder.avatarUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                holder.displayName.charAt(0).toUpperCase()
-              )}
+              <UserAvatar src={holder.avatarUrl} name={holder.displayName} fill ring={false} />
             </NextLink>
 
             <div className="min-w-0 flex-1">

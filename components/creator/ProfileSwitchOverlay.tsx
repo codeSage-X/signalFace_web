@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import { useAuth, useProfileMode } from '@/lib/stores';
 
 /**
@@ -17,7 +19,7 @@ export const ProfileSwitchOverlay = () => {
   const name = toCreator ? (realm?.name ?? 'your realm') : (user?.displayName ?? 'your profile');
   const handle = toCreator ? realm?.slug : user?.username;
   const imageUrl = toCreator ? realm?.iconUrl : user?.avatarUrl;
-  const initial = name.trim().charAt(0).toUpperCase() || '?';
+
 
   return (
     <div
@@ -34,13 +36,8 @@ export const ProfileSwitchOverlay = () => {
 
       <div className="relative flex flex-col items-center gap-5">
         <div className="relative">
-          <div className="w-24 h-24 rounded-full overflow-hidden brand-gradient flex items-center justify-center text-3xl font-bold text-white shadow-2xl">
-            {imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              initial
-            )}
+          <div className="w-24 h-24 rounded-full overflow-hidden bg-black dark:bg-white flex items-center justify-center text-3xl font-bold text-white shadow-2xl">
+            <UserAvatar src={imageUrl} name={name} fill ring={false} />
           </div>
           {/* Ring spinner around the avatar — the only motion on the screen. */}
           <span

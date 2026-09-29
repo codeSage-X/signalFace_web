@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, MessageCircle, Search as SearchIcon } from 'lucide-react';
@@ -9,14 +11,7 @@ import { useConversations } from '@/hooks/useChat';
 import { directConversationId, isChatConfigured } from '@/lib/chatClient';
 import { ChatThread } from '@/components/chat/ChatThread';
 
-function initialsOf(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0] ?? '')
-    .join('')
-    .toUpperCase();
-}
+
 
 function MessagesInner() {
   const router = useRouter();
@@ -159,7 +154,7 @@ function MessagesInner() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] lg:h-[calc(100vh-3.5rem)] flex overflow-hidden">
+    <div className="h-full min-h-0 flex overflow-hidden">
       {/* Inbox. Hidden on mobile while a thread is open, so one pane fills the screen. */}
       <aside
         className={`w-full lg:w-80 flex-shrink-0 border-r border-white/10 flex flex-col min-h-0 ${
@@ -232,16 +227,8 @@ function MessagesInner() {
                         active ? 'bg-white/[0.06]' : ''
                       }`}
                     >
-                      <span className="relative w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                        {person?.avatarUrl ? (
-                          <img
-                            src={person.avatarUrl}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          initialsOf(person?.displayName ?? '?')
-                        )}
+                      <span className="relative w-11 h-11 rounded-full overflow-hidden bg-black dark:bg-white flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                        <UserAvatar src={person?.avatarUrl} name={person?.displayName} fill ring={false} />
                         {unread && (
                           <span className="absolute right-0 bottom-0 w-3 h-3 rounded-full bg-primary ring-2 ring-background" />
                         )}

@@ -83,7 +83,7 @@ export const MobileNavDrawer = ({ unreadMessages = 0 }: { unreadMessages?: numbe
               aria-modal="true"
               aria-label="Navigation"
               className="absolute inset-y-0 left-0 w-[82%] max-w-xs flex flex-col
-                bg-background/95 backdrop-blur-xl border-r border-white/[0.06] shadow-2xl
+                bg-background/95 backdrop-blur-xl border-r border-border shadow-2xl
                 animate-in slide-in-from-left duration-200"
             >
             {/* Same red bloom the sidebar uses, so the drawer reads as the same surface. */}
@@ -93,7 +93,7 @@ export const MobileNavDrawer = ({ unreadMessages = 0 }: { unreadMessages?: numbe
               style={{ backgroundColor: 'rgba(196, 20, 63, 0.32)' }}
             />
 
-            <div className="relative z-10 flex items-center justify-between px-4 h-14 border-b border-white/[0.06]">
+            <div className="relative z-10 flex items-center justify-between px-4 h-14 border-b border-border">
               <Link href="/app/for-you" className="flex items-center gap-2">
                 <BrandMark size="sm" />
                 <span className="font-bold text-foreground text-sm tracking-wide">
@@ -132,8 +132,8 @@ export const MobileNavDrawer = ({ unreadMessages = 0 }: { unreadMessages?: numbe
                     }
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl transition ${
                       isActive
-                        ? 'bg-white/[0.08] text-white font-semibold'
-                        : 'text-white/70 hover:bg-white/[0.06] hover:text-white'
+                        ? 'bg-muted text-foreground font-semibold'
+                        : 'text-foreground hover:bg-muted hover:text-foreground'
                     }`}
                   >
                     <span className="flex items-center gap-3 min-w-0 flex-1">
@@ -150,13 +150,10 @@ export const MobileNavDrawer = ({ unreadMessages = 0 }: { unreadMessages?: numbe
               })}
             </nav>
 
-            <div
-              className="relative z-10 p-3 space-y-1 border-t"
-              style={{ borderColor: 'rgba(255,255,255,0.06)' }}
-            >
+            <div className="relative z-10 p-3 space-y-1 border-t border-border">
               <Link
                 href="/app/settings"
-                className="flex items-center gap-3 px-4 py-3 text-white/70 hover:bg-white/[0.06] hover:text-white rounded-xl transition"
+                className="flex items-center gap-3 px-4 py-3 text-foreground hover:bg-muted rounded-xl transition"
               >
                 <FontAwesomeIcon icon={faGear} className="h-4 w-4" />
                 <span className="text-sm">Settings</span>

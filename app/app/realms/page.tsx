@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import NextLink from 'next/link';
 import { BadgeCheck, Loader2, Plus, Search, Sparkles, Users } from 'lucide-react';
@@ -284,13 +286,8 @@ const RealmCard = ({
 
     <div className="p-4 -mt-8 relative">
       <NextLink href={`/app/r/${realm.slug}`} className="block">
-        <div className="w-14 h-14 rounded-xl brand-gradient flex items-center justify-center text-xl font-bold text-white overflow-hidden ring-4 ring-background">
-          {realm.iconUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={realm.iconUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            realm.name.charAt(0).toUpperCase()
-          )}
+        <div className="w-14 h-14 rounded-xl bg-black dark:bg-white flex items-center justify-center text-xl font-bold text-white overflow-hidden ring-4 ring-background">
+          <UserAvatar src={realm.iconUrl} name={realm.name} fill ring={false} />
         </div>
       </NextLink>
 

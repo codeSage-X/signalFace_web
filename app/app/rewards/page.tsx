@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import { useCallback, useEffect, useState } from 'react';
 import {
   Check,
@@ -220,12 +222,8 @@ export default function RewardsPage() {
             <ul className="space-y-1">
               {referrals.referrals.slice(0, 8).map((person) => (
                 <li key={person.id} className="flex items-center gap-3 py-1.5">
-                  <span className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-                    {person.avatarUrl ? (
-                      <img src={person.avatarUrl} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      person.displayName.charAt(0).toUpperCase()
-                    )}
+                  <span className="w-8 h-8 rounded-full overflow-hidden bg-black dark:bg-white flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                    <UserAvatar src={person.avatarUrl} name={person.displayName} fill ring={false} />
                   </span>
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm text-foreground truncate">

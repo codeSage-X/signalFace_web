@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/stores';
-import { Bell, MessageCircle, Search, Settings, User, Briefcase, LogOut, X, Plus } from 'lucide-react';
+import { Bell, MessageCircle, Search, Settings, User, Briefcase, LogOut, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BrandMark } from '@/components/BrandMark';
@@ -10,6 +10,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { MobileNavDrawer } from '@/components/layout/MobileNavDrawer';
 import { CreatorMenuSection } from '@/components/creator/CreatorMenuSection';
 import { useProfileSwitch } from '@/hooks/useCreatorProfile';
+import { UserAvatar } from '@/components/UserAvatar';
 
 export const TopBar = ({
   unreadMessages = 0,
@@ -21,7 +22,6 @@ export const TopBar = ({
   const { user, logout, setAuthModalOpen } = useAuth();
   const { mode, realm } = useProfileSwitch();
   const [open, setOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   // Both breakpoint variants exist in the DOM (CSS decides which shows), so a
   // single ref would only ever point at one of them.
   const desktopRef = useRef<HTMLDivElement>(null);
@@ -45,15 +45,10 @@ export const TopBar = ({
     router.push('/');
   };
 
-  const initials = user
-    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
-    : '?';
-
   // In creator mode the chrome wears the realm's identity, so it's always
   // obvious which profile an action will be taken as.
   const asRealm = mode === 'creator' && Boolean(realm);
   const avatarUrl = asRealm ? realm?.iconUrl : user?.avatarUrl;
-  const avatarFallback = asRealm ? (realm?.name.charAt(0).toUpperCase() ?? '?') : initials;
   const unreadMessagesLabel = unreadMessages > 99 ? '99+' : String(unreadMessages);
   const unreadActivityLabel = unreadActivity > 99 ? '99+' : String(unreadActivity);
 
@@ -61,16 +56,13 @@ export const TopBar = ({
     <button
       onClick={() => setOpen((o) => !o)}
       aria-label={asRealm ? `${realm?.name} menu` : 'Account menu'}
-      className={`flex items-center justify-center w-8 h-8 lg:w-9 lg:h-9 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white font-semibold text-sm hover:brightness-110 transition focus:outline-none focus:ring-2 focus:ring-primary overflow-hidden flex-shrink-0 ${
+      className={`flex items-center justify-center w-8 h-8 lg:w-9 lg:h-9 rounded-full text-white font-semibold text-sm hover:brightness-110 transition focus:outline-none focus:ring-2 focus:ring-primary overflow-hidden flex-shrink-0 ${
+        asRealm ? 'bg-black dark:bg-white' : 'bg-black dark:bg-white'
+      } ${
         asRealm ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''
       }`}
     >
-      {avatarUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-      ) : (
-        avatarFallback
-      )}
+      <UserAvatar src={avatarUrl} name={asRealm ? realm?.name : user?.displayName} fill ring={false} />
     </button>
   );
 
@@ -231,27 +223,12 @@ export const TopBar = ({
           </Link>
         </div>
 
-        {searchOpen && (
-          <div className="absolute inset-0 bg-background/95 backdrop-blur-xl flex items-center px-4 gap-3 z-10">
-            <Search size={18} className="text-muted-foreground flex-shrink-0" />
-            <input
-              autoFocus
-              type="text"
-              placeholder="Search creators, realms, signals..."
-              className="flex-1 bg-transparent focus:outline-none text-foreground placeholder-muted-foreground text-sm"
-            />
-            <button
-              onClick={() => setSearchOpen(false)}
-              className="text-muted-foreground hover:text-foreground transition"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        )}
-
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setSearchOpen(true)}
+            onClick={() => {
+              router.push('/app/search');
+            }}
+            aria-label="Search"
             className="text-muted-foreground hover:text-foreground transition p-1"
           >
             <Search size={20} />

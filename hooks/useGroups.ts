@@ -6,6 +6,7 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -31,6 +32,7 @@ export interface InterestGroup {
   ownerId: string | null;
   memberIds: string[];
   pendingMemberIds: string[];
+  invitedMemberIds: string[];
   createdAt: Date | null;
 }
 
@@ -42,6 +44,25 @@ export interface GroupMessage {
   type: 'text' | 'image' | 'video' | 'gif';
   media?: ChatMediaUpload;
   timestamp: Date | null;
+}
+
+export interface GroupPost {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorAvatarUrl: string | null;
+  text: string;
+  media?: ChatMediaUpload;
+  createdAt: Date | null;
+}
+
+export interface GroupComment {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorAvatarUrl: string | null;
+  text: string;
+  createdAt: Date | null;
 }
 
 export const SYSTEM_GROUPS = [
@@ -60,6 +81,46 @@ export const SYSTEM_GROUPS = [
     name: 'Health Solutions',
     description: 'Share routines, encouragement, and practical wellbeing ideas.',
   },
+  {
+    id: 'career-jobs',
+    name: 'Career & Jobs',
+    description: 'Discover opportunities, improve your CV, prepare for interviews, and grow your career.',
+  },
+  {
+    id: 'business',
+    name: 'Business',
+    description: 'Discuss entrepreneurship, sales, funding, operations, and building sustainable businesses.',
+  },
+  {
+    id: 'technology-ai',
+    name: 'Technology & AI',
+    description: 'Explore software, digital skills, emerging technology, artificial intelligence, and useful tools.',
+  },
+  {
+    id: 'personal-finance',
+    name: 'Personal Finance',
+    description: 'Share practical ideas about budgeting, saving, responsible investing, and financial planning.',
+  },
+  {
+    id: 'parenting',
+    name: 'Parenting',
+    description: 'Connect around childcare, education, family life, and the everyday realities of raising children.',
+  },
+  {
+    id: 'entertainment',
+    name: 'Entertainment',
+    description: 'Talk about films, music, television, creators, celebrity news, and popular culture.',
+  },
+  {
+    id: 'sports',
+    name: 'Sports',
+    description: 'Follow football, basketball, major competitions, match discussions, and sporting stories.',
+  },
+  {
+    id: 'food-cooking',
+    name: 'Food & Cooking',
+    description: 'Exchange recipes, cooking techniques, restaurant recommendations, and food discoveries.',
+  },
 ] as const;
 
 function toDate(value: unknown): Date | null {
@@ -77,6 +138,7 @@ function toGroup(id: string, data: Record<string, unknown>): InterestGroup {
     ownerId: typeof data.ownerId === 'string' ? data.ownerId : null,
     memberIds: Array.isArray(data.memberIds) ? data.memberIds as string[] : [],
     pendingMemberIds: Array.isArray(data.pendingMemberIds) ? data.pendingMemberIds as string[] : [],
+    invitedMemberIds: Array.isArray(data.invitedMemberIds) ? data.invitedMemberIds as string[] : [],
     createdAt: toDate(data.createdAt),
   };
 }
@@ -159,6 +221,7 @@ export function useGroupActions() {
       ownerId: user.id,
       memberIds: [user.id],
       pendingMemberIds: [],
+      invitedMemberIds: [],
       createdAt: serverTimestamp(),
     });
     return group.id;
@@ -183,6 +246,24 @@ export function useGroupActions() {
     });
   }, [user]);
 
+  const inviteMember = useCallback(async (group: InterestGroup, memberId: string) => {
+    if (!user || !group.memberIds.includes(user.id)) throw new Error('Join the group before inviting people.');
+    if (group.memberIds.includes(memberId) || group.invitedMemberIds.includes(memberId)) return;
+    await ensureChatAuth();
+    await updateDoc(doc(chatDb(), 'groups', group.id), {
+      invitedMemberIds: arrayUnion(memberId),
+    });
+  }, [user]);
+
+  const acceptInvite = useCallback(async (group: InterestGroup) => {
+    if (!user || !group.invitedMemberIds.includes(user.id)) throw new Error('This invitation is no longer available.');
+    await ensureChatAuth();
+    await updateDoc(doc(chatDb(), 'groups', group.id), {
+      memberIds: arrayUnion(user.id),
+      invitedMemberIds: arrayRemove(user.id),
+    });
+  }, [user]);
+
   const createSystemGroup = useCallback(async (systemId: string) => {
     const source = SYSTEM_GROUPS.find((entry) => entry.id === systemId);
     if (!user || !source) throw new Error('Sign in to join a group.');
@@ -197,12 +278,167 @@ export function useGroupActions() {
         ownerId: null,
         memberIds: [user.id],
         pendingMemberIds: [],
+        invitedMemberIds: [],
         createdAt: serverTimestamp(),
       });
     }
   }, [user]);
 
-  return { createGroup, joinGroup, approveRequest, createSystemGroup, user };
+  return { createGroup, joinGroup, approveRequest, inviteMember, acceptInvite, createSystemGroup, user };
+}
+
+export function useGroupPosts(groupId: string, isMember: boolean) {
+  const user = useAuth((state) => state.user);
+  const [posts, setPosts] = useState<GroupPost[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isMember || !isChatConfigured) {
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+    ensureChatAuth().then(() => {
+      if (cancelled) return;
+      unsubscribe = onSnapshot(
+        query(collection(chatDb(), 'groups', groupId, 'posts'), orderBy('createdAt', 'desc')),
+        (snapshot) => {
+          setPosts(snapshot.docs.map((entry) => {
+            const data = entry.data();
+            return {
+              id: entry.id,
+              authorId: String(data.authorId ?? ''),
+              authorName: String(data.authorName ?? 'Member'),
+              authorAvatarUrl: typeof data.authorAvatarUrl === 'string' ? data.authorAvatarUrl : null,
+              text: String(data.text ?? ''),
+              media: data.media ?? undefined,
+              createdAt: toDate(data.createdAt),
+            };
+          }));
+          setLoading(false);
+        },
+        (error) => {
+          logChatError('group posts listener', error);
+          setLoading(false);
+        },
+      );
+    }).catch(() => setLoading(false));
+    return () => { cancelled = true; unsubscribe?.(); };
+  }, [groupId, isMember]);
+
+  const createPost = useCallback(async (text: string, media?: ChatMediaUpload) => {
+    if (!user || (!text.trim() && !media)) return;
+    await ensureChatAuth();
+    await addDoc(collection(chatDb(), 'groups', groupId, 'posts'), {
+      authorId: user.id,
+      authorName: user.displayName,
+      authorAvatarUrl: user.avatarUrl ?? null,
+      text: text.trim(),
+      ...(media ? { media } : {}),
+      createdAt: serverTimestamp(),
+    });
+  }, [groupId, user]);
+
+  return { posts, loading, createPost };
+}
+
+export function useGroupPostLikes(groupId: string, postId: string, isMember: boolean) {
+  const user = useAuth((state) => state.user);
+  const [likeCount, setLikeCount] = useState(0);
+  const [liked, setLiked] = useState(false);
+
+  useEffect(() => {
+    if (!isMember || !user || !isChatConfigured) {
+      setLikeCount(0);
+      setLiked(false);
+      return;
+    }
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+    ensureChatAuth().then(() => {
+      if (cancelled) return;
+      unsubscribe = onSnapshot(
+        collection(chatDb(), 'groups', groupId, 'posts', postId, 'likes'),
+        (snapshot) => {
+          setLikeCount(snapshot.size);
+          setLiked(snapshot.docs.some((entry) => entry.id === user.id));
+        },
+        (error) => logChatError('group post likes listener', error),
+      );
+    }).catch((error) => logChatError('group post likes listener', error));
+    return () => { cancelled = true; unsubscribe?.(); };
+  }, [groupId, postId, isMember, user]);
+
+  const toggleLike = useCallback(async () => {
+    if (!user || !isMember) throw new Error('Join the group to like posts.');
+    await ensureChatAuth();
+    const likeRef = doc(chatDb(), 'groups', groupId, 'posts', postId, 'likes', user.id);
+    const existing = await getDoc(likeRef);
+    if (existing.exists()) {
+      await deleteDoc(likeRef);
+    } else {
+      await setDoc(likeRef, { userId: user.id, createdAt: serverTimestamp() });
+    }
+  }, [groupId, postId, isMember, user]);
+
+  return { likeCount, liked, toggleLike };
+}
+
+export function useGroupComments(groupId: string, postId: string, isMember: boolean) {
+  const user = useAuth((state) => state.user);
+  const [comments, setComments] = useState<GroupComment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isMember || !isChatConfigured) {
+      setComments([]);
+      setLoading(false);
+      return;
+    }
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+    ensureChatAuth().then(() => {
+      if (cancelled) return;
+      unsubscribe = onSnapshot(
+        query(collection(chatDb(), 'groups', groupId, 'posts', postId, 'comments'), orderBy('createdAt', 'asc')),
+        (snapshot) => {
+          setComments(snapshot.docs.map((entry) => {
+            const data = entry.data();
+            return {
+              id: entry.id,
+              authorId: String(data.authorId ?? ''),
+              authorName: String(data.authorName ?? 'Member'),
+              authorAvatarUrl: typeof data.authorAvatarUrl === 'string' ? data.authorAvatarUrl : null,
+              text: String(data.text ?? ''),
+              createdAt: toDate(data.createdAt),
+            };
+          }));
+          setLoading(false);
+        },
+        (error) => {
+          logChatError('group comments listener', error);
+          setLoading(false);
+        },
+      );
+    }).catch(() => setLoading(false));
+    return () => { cancelled = true; unsubscribe?.(); };
+  }, [groupId, postId, isMember]);
+
+  const addComment = useCallback(async (text: string) => {
+    if (!user || !text.trim()) return;
+    await ensureChatAuth();
+    await addDoc(collection(chatDb(), 'groups', groupId, 'posts', postId, 'comments'), {
+      authorId: user.id,
+      authorName: user.displayName,
+      authorAvatarUrl: user.avatarUrl ?? null,
+      text: text.trim(),
+      createdAt: serverTimestamp(),
+    });
+  }, [groupId, postId, user]);
+
+  return { comments, loading, addComment };
 }
 
 export function useGroupMessages(groupId: string, isMember: boolean) {

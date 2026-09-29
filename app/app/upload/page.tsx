@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -7,6 +9,7 @@ import { useAuth, usePostUpload, useToast } from '@/lib/stores';
 import { useProfileSwitch } from '@/hooks/useCreatorProfile';
 import {
   postsApi,
+  ApiError,
   REALM_CATEGORIES,
   REALM_CATEGORY_LABELS,
   type RealmCategory,
@@ -87,9 +90,7 @@ function UploadForm() {
     };
   }, [identityOpen]);
 
-  const initials = user
-    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
-    : '?';
+
 
   const asRealm = postAsRealm && Boolean(realm);
 
@@ -193,10 +194,38 @@ function UploadForm() {
             cover: payload.cover,
             category: payload.category,
           })
-          .then(() => uploadSucceeded())
+          .then(async (post) => {
+            if (post.moderation !== 'CENSORED') {
+              uploadSucceeded();
+              return;
+            }
+
+            // Video moderation is asynchronous. Keep the global upload state
+            // alive after navigation so a later webhook decision still reaches
+            // the author as a success or a rejection modal.
+            for (let attempt = 0; attempt < 90; attempt += 1) {
+              await new Promise((resolve) => window.setTimeout(resolve, 2000));
+              const moderation = await postsApi.moderationStatus(post.id);
+              if (moderation.status === 'VISIBLE') {
+                uploadSucceeded();
+                return;
+              }
+              if (moderation.status === 'REMOVED') {
+                uploadFailed(
+                  moderation.message ??
+                    'This media was flagged as violating our Community Guidelines and has been removed.',
+                  'MEDIA_REJECTED',
+                );
+                return;
+              }
+            }
+
+            uploadFailed('Your media is still being reviewed. Check back shortly.');
+          })
           .catch((err) => {
             uploadFailed(
               err instanceof Error ? err.message : 'Could not publish your post.',
+              err instanceof ApiError ? err.code : undefined,
             );
           });
       };
@@ -234,23 +263,11 @@ function UploadForm() {
           <div
             className={`w-10 h-10 flex items-center justify-center text-sm font-bold text-white overflow-hidden flex-shrink-0 ${
               asRealm
-                ? 'rounded-xl brand-gradient'
-                : 'rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500'
+                ? 'rounded-xl'
+                : 'rounded-full'
             }`}
           >
-            {asRealm ? (
-              realm?.iconUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={realm.iconUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                (realm?.name.charAt(0).toUpperCase() ?? '?')
-              )
-            ) : user?.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              initials
-            )}
+            <UserAvatar src={asRealm ? realm?.iconUrl : user?.avatarUrl} name={asRealm ? realm?.name : user?.displayName} fill ring={false} />
           </div>
 
           <div className="min-w-0 flex-1">

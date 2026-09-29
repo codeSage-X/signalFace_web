@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import NextLink from 'next/link';
 import { DASH } from './theme';
 
@@ -39,22 +41,15 @@ export const TopGainersCard = ({ rows }: { rows: GainerRow[] }) => (
       <ul className="space-y-3.5">
         {rows.map((r) => {
           const up = r.changePct >= 0;
-          const initial = r.name.trim().charAt(0).toUpperCase() || '?';
+
 
           const row = (
             <>
               <div
                 className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-                style={{
-                  backgroundImage: `linear-gradient(135deg, ${DASH.violet}, ${DASH.magenta})`,
-                }}
+
               >
-                {r.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.avatarUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  initial
-                )}
+                <UserAvatar src={r.avatarUrl} name={r.name} fill ring={false} />
               </div>
 
               <div className="min-w-0 flex-1">

@@ -32,9 +32,10 @@ export default function AppLayout({
   // it the way the scrolling pages do.
   const pathname = usePathname();
   const immersive = pathname === '/app/for-you';
+  const chatScreen = pathname === '/app/messages';
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-dvh bg-background">
       {/* What every glass surface in the app blurs against. Fixed and inert, so
           it neither scrolls with the feed nor eats pointer events. */}
       <div aria-hidden className="app-ambient" />
@@ -43,7 +44,7 @@ export default function AppLayout({
       <div className="relative z-10 flex-1 flex flex-col lg:ml-64 min-w-0">
         <TopBar unreadMessages={unreadMessages} unreadActivity={unreadActivity} />
         <main
-          className={`flex-1 overflow-y-auto min-h-0 ${immersive ? '' : 'pb-20 lg:pb-0'}`}
+          className={`flex-1 min-h-0 ${chatScreen ? 'overflow-hidden pb-16 lg:pb-0' : 'overflow-y-auto'} ${immersive || chatScreen ? '' : 'pb-20 lg:pb-0'}`}
         >
           {children}
         </main>

@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
@@ -39,14 +41,7 @@ function fmt(n: number): string {
   return String(n);
 }
 
-function initialsOf(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0] ?? '')
-    .join('')
-    .toUpperCase();
-}
+
 
 function timeAgo(iso: string) {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -534,15 +529,11 @@ export function PostDetailModal({
           <div className="p-4 border-b border-white/10 flex items-center gap-3">
             <Link
               href={authorHref}
-              className={`w-11 h-11 flex-shrink-0 bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold overflow-hidden hover:brightness-110 transition ${
+              className={`w-11 h-11 flex-shrink-0 bg-black dark:bg-white flex items-center justify-center text-white text-xs font-bold overflow-hidden hover:brightness-110 transition ${
                 realm ? 'rounded-xl' : 'rounded-full'
               }`}
             >
-              {authorImage ? (
-                <img src={authorImage} alt="" className="w-full h-full object-cover" />
-              ) : (
-                initialsOf(authorName)
-              )}
+              <UserAvatar src={authorImage} name={authorName} fill ring={false} />
             </Link>
 
             <div className="flex-1 min-w-0">
@@ -608,17 +599,9 @@ export function PostDetailModal({
                     <div key={comment.id} className="flex gap-3">
                       <Link
                         href={`/app/u/${comment.author.username}`}
-                        className="w-8 h-8 rounded-full flex-shrink-0 bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-[10px] font-bold overflow-hidden"
+                        className="w-8 h-8 rounded-full flex-shrink-0 bg-black dark:bg-white flex items-center justify-center text-white text-[10px] font-bold overflow-hidden"
                       >
-                        {comment.author.avatarUrl ? (
-                          <img
-                            src={comment.author.avatarUrl}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          initialsOf(comment.author.displayName)
-                        )}
+                        <UserAvatar src={comment.author.avatarUrl} name={comment.author.displayName} fill ring={false} />
                       </Link>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-foreground">

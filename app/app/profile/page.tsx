@@ -57,6 +57,7 @@ import {
 } from '@/lib/utils';
 import { FollowersFollowingModal } from '@/components/social/FollowersFollowingModal';
 import { ModeratedMedia } from '@/components/social/ModeratedMedia';
+import { UserAvatar } from '@/components/UserAvatar';
 import { usd } from '@/components/dashboard/SignalMarketCard';
 
 const MAX_PINNED_POSTS = 3;
@@ -183,10 +184,6 @@ export default function ProfilePage() {
 
   const bio = user?.bio ?? '';
   const link = user?.websiteUrl ?? '';
-
-  const initials = user
-    ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
-    : '??';
 
   useEffect(() => {
     // Hooks run before this component's signed-out early return, so the guard
@@ -567,13 +564,9 @@ export default function ProfilePage() {
               onClick={() => user?.avatarUrl && setAvatarPreviewOpen(true)}
               disabled={!user?.avatarUrl}
               aria-label="View your profile picture"
-              className="w-28 h-28 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-3xl font-bold text-white overflow-hidden ring-4 ring-border enabled:cursor-zoom-in enabled:hover:brightness-110 transition disabled:cursor-default"
+              className="w-28 h-28 rounded-full overflow-hidden ring-4 ring-border enabled:cursor-zoom-in enabled:hover:brightness-110 transition disabled:cursor-default"
             >
-              {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                initials
-              )}
+              <UserAvatar src={user?.avatarUrl} name={user?.displayName} size="xl" ring={false} />
             </button>
             {avatarPreviewOpen && (
               <button
@@ -985,7 +978,7 @@ export default function ProfilePage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="h-full w-full overflow-hidden rounded-full bg-background ring-4 ring-white/20 shadow-2xl">
-              <img src={user.avatarUrl} alt="Your profile picture" className="h-full w-full object-cover" />
+              <UserAvatar src={user.avatarUrl} name={user.displayName} fill ring={false} />
             </div>
             {/* Sits outside the circular clip mask so it doesn't get cut off. */}
             <button
@@ -1180,6 +1173,7 @@ function PostGridCard({
       onKeyDown={
         onOpen
           ? (e) => {
+              if (e.target !== e.currentTarget) return;
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 onOpen();
@@ -1235,44 +1229,46 @@ function PostGridCard({
         {kind === 'text' && <FileText size={12} />}
       </div>
 
-      {/* Reach — video counts plays, everything else counts views */}
-      <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white text-xs drop-shadow">
-        {kind === 'video' ? <Play size={10} fill="white" /> : <Eye size={10} />}
-        <span>{viewCount.toLocaleString()}</span>
-      </div>
-
-      {/* Author credit — saved posts are usually someone else's */}
-      {variant === 'favorite' && (
-        <div className="absolute bottom-2 right-2 max-w-[70%] text-white/90 text-[10px] font-medium truncate drop-shadow">
-          @{post.author.username}
-        </div>
-      )}
-
-      {/* Hover overlay + controls */}
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-      {variant === 'own' && post.isMine && (
-        <div className="absolute z-20 bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {/* These sit inside the card, which now opens the viewer — without
-              stopping the click, pinning would also open the post. */}
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onTogglePin?.(post); }}
-            title={pinned ? 'Unpin' : 'Pin to top'}
-            className="w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black"
-          >
-            {pinned ? <PinOff size={12} /> : <Pin size={12} />}
-          </button>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onDelete?.(post); }}
-            title="Delete post"
-            className="w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-red-600"
-          >
-            <Trash2 size={12} />
-          </button>
+      {/* Views and owner controls share one row and stay visible on every device. */}
+      <div className="absolute z-20 bottom-2 inset-x-2 flex items-center justify-between gap-1">
+        <div className="flex min-w-0 items-center gap-1 text-white text-xs drop-shadow">
+          {kind === 'video' ? <Play size={10} fill="white" className="shrink-0" /> : <Eye size={10} className="shrink-0" />}
+          <span className="truncate" title={viewCount.toLocaleString()}>{viewCount.toLocaleString()}</span>
         </div>
-      )}
+
+        {variant === 'favorite' && (
+          <div className="max-w-[70%] text-white/90 text-[10px] font-medium truncate drop-shadow">
+            @{post.author.username}
+          </div>
+        )}
+
+        {variant === 'own' && post.isMine && (
+          <div className="flex shrink-0 items-center gap-1">
+            {/* These sit inside the card, which now opens the viewer — without
+                stopping the click, pinning would also open the post. */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onTogglePin?.(post); }}
+              title={pinned ? 'Unpin' : 'Pin to top'}
+              aria-label={pinned ? 'Unpin post' : 'Pin post to top'}
+              className="w-11 h-11 [@media(hover:hover)_and_(pointer:fine)]:w-7 [@media(hover:hover)_and_(pointer:fine)]:h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black focus-visible:outline-2 focus-visible:outline-white"
+            >
+              {pinned ? <PinOff size={12} /> : <Pin size={12} />}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDelete?.(post); }}
+              title="Delete post"
+              aria-label="Delete post"
+              className="w-11 h-11 [@media(hover:hover)_and_(pointer:fine)]:w-7 [@media(hover:hover)_and_(pointer:fine)]:h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-white"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        )}
+      </div>
 
       {variant === 'favorite' && (
         <button

@@ -235,26 +235,28 @@ export const usePostUpload = create<{
   status: PostUploadStatus | null;
   percent: number;
   error: string | null;
+  errorCode: string | null;
   /** Re-runs the exact publish that failed. Set only in the error state. */
   retry: (() => void) | null;
   start: (retry: () => void) => void;
   setPercent: (percent: number) => void;
   succeed: () => void;
-  fail: (error: string) => void;
+  fail: (error: string, code?: string) => void;
   clear: () => void;
 }>((set) => ({
   status: null,
   percent: 0,
   error: null,
+  errorCode: null,
   retry: null,
-  start: (retry) => set({ status: 'uploading', percent: 0, error: null, retry }),
+  start: (retry) => set({ status: 'uploading', percent: 0, error: null, errorCode: null, retry }),
   // Once every byte is sent the server is still transcoding, so the bar stops
   // claiming progress it cannot measure and says so instead.
   setPercent: (percent) =>
     set({ percent, status: percent >= 100 ? 'processing' : 'uploading' }),
-  succeed: () => set({ status: 'done', percent: 100, error: null, retry: null }),
-  fail: (error) => set({ status: 'error', error }),
-  clear: () => set({ status: null, percent: 0, error: null, retry: null }),
+  succeed: () => set({ status: 'done', percent: 100, error: null, errorCode: null, retry: null }),
+  fail: (error, errorCode) => set({ status: 'error', error, errorCode: errorCode ?? null }),
+  clear: () => set({ status: null, percent: 0, error: null, errorCode: null, retry: null }),
 }));
 
 const MAX_RECENT_SEARCHES = 8;

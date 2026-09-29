@@ -16,7 +16,6 @@ import {
   postsApi,
   realmsApi,
   usersApi,
-  REALM_CATEGORY_LABELS,
   realmCategoryLabel,
   type FeedPost,
   type FollowPerson,
@@ -27,8 +26,9 @@ import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { ImmersiveFeed } from '@/components/feed/ImmersiveFeed';
 import { PeopleYouMayKnow } from '@/components/social/PeopleYouMayKnow';
 import { ModeratedMedia } from '@/components/social/ModeratedMedia';
+import { UserAvatar } from '@/components/UserAvatar';
 
-const TABS = ['Top', 'Users', 'Videos', 'Pages'] as const;
+const TABS = ['Top', 'Users', 'Videos', 'Realms'] as const;
 type Tab = (typeof TABS)[number];
 
 const PAGE_SIZE = 18;
@@ -50,15 +50,6 @@ function fmt(n: number) {
   return String(n);
 }
 
-function initialsOf(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0] ?? '')
-    .join('')
-    .toUpperCase();
-}
-
 function SearchPageInner() {
   const router = useRouter();
   const params = useSearchParams();
@@ -73,6 +64,7 @@ function SearchPageInner() {
   const [tab, setTab] = useState<Tab>('Top');
   const [results, setResults] = useState<Results>(EMPTY);
   const [loading, setLoading] = useState(false);
+  const [realmsFailed, setRealmsFailed] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -94,11 +86,14 @@ function SearchPageInner() {
   useEffect(() => {
     if (!query) {
       setResults(EMPTY);
+      setLoading(false);
+      setRealmsFailed(false);
       return;
     }
 
     let cancelled = false;
     setLoading(true);
+    setRealmsFailed(false);
 
     // All three run together: the Top tab needs every kind, and fetching them
     // per-tab would make switching tabs feel like a fresh search.
@@ -109,6 +104,7 @@ function SearchPageInner() {
     ])
       .then(([users, posts, realms]) => {
         if (cancelled) return;
+        setRealmsFailed(realms.status === 'rejected');
         setResults({
           users: users.status === 'fulfilled' ? users.value.items : [],
           posts: posts.status === 'fulfilled' ? posts.value.items : [],
@@ -143,8 +139,14 @@ function SearchPageInner() {
   );
 
   const videos = results.posts.filter((p) => p.kind === 'video');
-  const hasAny =
-    results.users.length > 0 || results.posts.length > 0 || results.realms.length > 0;
+  const hasResults = tab === 'Users'
+    ? results.users.length > 0
+    : tab === 'Videos'
+      ? videos.length > 0
+      : tab === 'Realms'
+        ? results.realms.length > 0
+        : results.users.length > 0 || results.posts.length > 0 || results.realms.length > 0;
+  const showRealmError = realmsFailed && (tab === 'Top' || tab === 'Realms');
 
   return (
     <div className="max-w-5xl mx-auto px-4 lg:px-8 py-6">
@@ -174,9 +176,10 @@ function SearchPageInner() {
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Search creators, videos and pages"
+            placeholder="Search creators, videos and realms"
             className="w-full pl-10 pr-10 py-2.5 rounded-full text-sm text-foreground placeholder-muted-foreground
-              border border-white/10 bg-white/[0.04] focus:outline-none focus:ring-2 focus:ring-primary"
+              border-2 border-primary bg-white/[0.04] focus:outline-none
+              lg:border lg:border-white/10 lg:focus:ring-2 lg:focus:ring-primary"
           />
           {draft && (
             <button
@@ -243,7 +246,7 @@ function SearchPageInner() {
               </div>
               <p className="text-foreground font-semibold">Search Signal Face</p>
               <p className="text-muted-foreground text-sm mt-1">
-                Find creators, videos and pages.
+                Find creators, videos and realms.
               </p>
             </div>
           )}
@@ -273,9 +276,11 @@ function SearchPageInner() {
             <div className="flex justify-center py-20">
               <Loader2 size={22} className="animate-spin text-muted-foreground" />
             </div>
-          ) : !hasAny ? (
+          ) : !hasResults && !showRealmError ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
-              <p className="text-foreground font-semibold">No results for “{query}”</p>
+              <p className="text-foreground font-semibold">
+                No {tab === 'Top' ? 'results' : tab.toLowerCase()} for “{query}”
+              </p>
               <p className="text-muted-foreground text-sm mt-1">
                 Try a different spelling or a shorter term.
               </p>
@@ -293,14 +298,20 @@ function SearchPageInner() {
                 </Section>
               )}
 
-              {(tab === 'Top' || tab === 'Pages') && results.realms.length > 0 && (
-                <Section title="Pages" showAll={tab === 'Top' && results.realms.length > 3}
-                  onShowAll={() => setTab('Pages')}>
-                  <ul className="space-y-1">
-                    {(tab === 'Top' ? results.realms.slice(0, 3) : results.realms).map((realm) => (
-                      <RealmRow key={realm.id} realm={realm} />
-                    ))}
-                  </ul>
+              {(tab === 'Top' || tab === 'Realms') && (results.realms.length > 0 || showRealmError) && (
+                <Section title="Realms" showAll={tab === 'Top' && results.realms.length > 3}
+                  onShowAll={() => setTab('Realms')}>
+                  {showRealmError ? (
+                    <p role="alert" className="text-muted-foreground text-sm">
+                      Couldn’t load realms. Please try your search again.
+                    </p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {(tab === 'Top' ? results.realms.slice(0, 3) : results.realms).map((realm) => (
+                        <RealmRow key={realm.id} realm={realm} />
+                      ))}
+                    </ul>
+                  )}
                 </Section>
               )}
 
@@ -385,13 +396,12 @@ function UserRow({ person }: { person: FollowPerson }) {
         href={`/app/u/${person.username}`}
         className="flex items-center gap-3 py-2 px-2 -mx-2 rounded-xl hover:bg-white/[0.04] transition"
       >
-        <span className="w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-          {person.avatarUrl ? (
-            <img src={person.avatarUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            initialsOf(person.displayName)
-          )}
-        </span>
+        <UserAvatar
+          src={person.avatarUrl}
+          name={person.displayName}
+          size="md"
+          className="!w-11 !h-11"
+        />
         <span className="flex-1 min-w-0">
           <span className="flex items-center gap-1.5">
             <span className="text-sm font-semibold text-foreground truncate">
@@ -415,12 +425,8 @@ function RealmRow({ realm }: { realm: Realm }) {
         href={`/app/r/${realm.slug}`}
         className="flex items-center gap-3 py-2 px-2 -mx-2 rounded-xl hover:bg-white/[0.04] transition"
       >
-        <span className="w-11 h-11 rounded-xl overflow-hidden bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-          {realm.iconUrl ? (
-            <img src={realm.iconUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            realm.name.charAt(0).toUpperCase()
-          )}
+        <span className="w-11 h-11 rounded-xl overflow-hidden bg-black dark:bg-white flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+          <UserAvatar src={realm.iconUrl} name={realm.name} fill ring={false} />
         </span>
         <span className="flex-1 min-w-0">
           <span className="block text-sm font-semibold text-foreground truncate">

@@ -5,14 +5,18 @@ import { Loader2, LineChart } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { SignalMarketCard, usd } from '@/components/dashboard/SignalMarketCard';
 import { signalsApi, type SignalListItem } from '@/lib/api';
-import { useToast } from '@/lib/stores';
+import { useAuth, useToast } from '@/lib/stores';
 import { BuySignalModal } from '@/components/trading/BuySignalModal';
+
+const excludeOwnedSignals = (items: SignalListItem[], userId?: string) =>
+  userId ? items.filter((signal) => signal.creatorId !== userId) : items;
 
 export default function SignalsPage() {
   const [signals, setSignals] = useState<SignalListItem[]>([]);
   const [buyingSignal, setBuyingSignal] = useState<SignalListItem | null>(null);
   const [loading, setLoading] = useState(true);
   const { addToast } = useToast();
+  const userId = useAuth((state) => state.user?.id);
 
   useEffect(() => {
     let cancelled = false;
@@ -20,7 +24,7 @@ export default function SignalsPage() {
     signalsApi
       .list()
       .then((items) => {
-        if (!cancelled) setSignals(items);
+        if (!cancelled) setSignals(excludeOwnedSignals(items, userId));
       })
       .catch((err) => {
         if (cancelled) return;
@@ -37,7 +41,7 @@ export default function SignalsPage() {
     return () => {
       cancelled = true;
     };
-  }, [addToast]);
+  }, [addToast, userId]);
 
   // Derived from the real list rather than invented: `/signals` comes back
   // ordered by price descending, so first and last bound the range.
@@ -62,7 +66,7 @@ export default function SignalsPage() {
   const refreshSignals = () =>
     signalsApi
       .list()
-      .then(setSignals)
+      .then((items) => setSignals(excludeOwnedSignals(items, userId)))
       .catch(() => {});
 
   return (

@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import { useRef, useState, useEffect, useCallback } from 'react';
 import {
   Heart, MessageCircle, Share2, Eye, Bookmark, Repeat2,
@@ -43,14 +45,7 @@ function fmt(n: number): string {
   return String(n);
 }
 
-function initialsOf(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0] ?? '')
-    .join('')
-    .toUpperCase();
-}
+
 
 function timeAgo(iso: string) {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -82,13 +77,13 @@ function ActionBtn({
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-1 group active:scale-90 transition-transform"
+      className="flex flex-col items-center gap-1 group text-white lg:text-foreground active:scale-90 transition-transform"
     >
       <div className="w-11 h-11 rounded-full glass-chip flex items-center justify-center group-hover:brightness-125 transition">
         {icon}
       </div>
       {count && (
-        <span className="text-white text-xs font-semibold drop-shadow-sm">{count}</span>
+        <span className="text-xs font-semibold drop-shadow-sm">{count}</span>
       )}
     </button>
   );
@@ -120,7 +115,7 @@ function ActionColumn({
   const href = realm ? `/app/r/${realm.slug}` : `/app/u/${post.author.username}`;
   const handle = realm ? realm.slug : post.author.username;
   const imageUrl = realm ? realm.iconUrl : post.author.avatarUrl;
-  const fallback = realm ? realm.name.charAt(0).toUpperCase() : initialsOf(post.author.displayName);
+
   const isFollowed = realm ? realm.followedByMe : post.author.followedByMe;
 
   return (
@@ -130,17 +125,13 @@ function ActionColumn({
         <Link
           href={href}
           title={`View @${handle}`}
-          className={`block w-12 h-12 bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white font-bold text-xs ring-2 ring-white/80 shadow-lg overflow-hidden hover:brightness-110 transition ${
+          className={`block w-12 h-12 bg-black dark:bg-white flex items-center justify-center text-white font-bold text-xs ring-2 ring-white/80 lg:ring-border shadow-lg overflow-hidden hover:brightness-110 transition ${
             // Square-ish for a page, round for a person — the same visual
             // grammar Facebook and Instagram use.
             realm ? 'rounded-xl' : 'rounded-full'
           }`}
         >
-          {imageUrl ? (
-            <img src={imageUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="w-full h-full flex items-center justify-center">{fallback}</span>
-          )}
+          <UserAvatar src={imageUrl} name={realm ? realm.name : post.author.displayName} fill ring={false} />
         </Link>
 
         {/* Hidden on your own posts — following yourself isn't a thing. */}
@@ -169,14 +160,14 @@ function ActionColumn({
           <Heart
             size={22}
             fill={post.likedByMe ? '#ff3d6e' : 'none'}
-            stroke={post.likedByMe ? '#ff3d6e' : 'white'}
+            stroke={post.likedByMe ? '#ff3d6e' : 'currentColor'}
           />
         }
         count={fmt(post.likeCount)}
         onClick={onLike}
       />
       <ActionBtn
-        icon={<MessageCircle size={22} stroke="white" />}
+        icon={<MessageCircle size={22} />}
         count={fmt(post.commentCount)}
         onClick={onOpenComments}
       />
@@ -184,8 +175,7 @@ function ActionColumn({
         icon={
           <Bookmark
             size={22}
-            fill={post.bookmarkedByMe ? 'white' : 'none'}
-            stroke="white"
+            fill={post.bookmarkedByMe ? 'currentColor' : 'none'}
           />
         }
         count={fmt(post.bookmarkCount)}
@@ -197,18 +187,18 @@ function ActionColumn({
             size={22}
             // Filling a Repeat2 glyph reads as a smudge, so an active repost is
             // shown by colour instead.
-            stroke={post.repostedByMe ? '#22c55e' : 'white'}
+            stroke={post.repostedByMe ? '#22c55e' : 'currentColor'}
           />
         }
         count={fmt(post.repostCount ?? 0)}
         onClick={onRepost}
       />
       <ActionBtn
-        icon={<Share2 size={22} stroke="white" />}
+        icon={<Share2 size={22} />}
         onClick={onShare}
       />
 
-      <div className="flex flex-col items-center gap-1 text-white/70">
+      <div className="flex flex-col items-center gap-1 text-white/70 lg:text-muted-foreground">
         <Eye size={18} />
         <span className="text-xs font-semibold">{fmt(post.viewCount)}</span>
       </div>
@@ -500,13 +490,9 @@ function CommentAvatar({ author, size = 8 }: { author: PostAuthor; size?: 6 | 8 
   const dim = size === 6 ? 'w-6 h-6 text-[9px]' : 'w-8 h-8 text-[10px]';
   return (
     <div
-      className={`${dim} rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center font-bold text-white flex-shrink-0 overflow-hidden`}
+      className={`${dim} rounded-full bg-black dark:bg-white flex items-center justify-center font-bold text-white flex-shrink-0 overflow-hidden`}
     >
-      {author.avatarUrl ? (
-        <img src={author.avatarUrl} alt="" className="w-full h-full object-cover" />
-      ) : (
-        initialsOf(author.displayName)
-      )}
+      <UserAvatar src={author.avatarUrl} name={author.displayName} fill ring={false} />
     </div>
   );
 }
@@ -909,20 +895,20 @@ export function FeedSkeleton() {
   return (
     <div className="h-full overflow-hidden flex items-center justify-center lg:px-10">
       <div className="relative flex items-end h-full w-full lg:w-auto lg:gap-3 lg:py-4">
-        <div className="relative w-full h-full overflow-hidden bg-white/[0.04] animate-pulse lg:flex-shrink-0 lg:w-[390px] xl:w-[500px] lg:rounded-2xl">
+        <div className="relative w-full h-full overflow-hidden bg-muted animate-pulse lg:flex-shrink-0 lg:w-[390px] xl:w-[500px] lg:rounded-2xl">
           {/* Caption placeholder, where the real one sits */}
           <div className="absolute bottom-0 left-0 right-0 pl-4 pr-20 pb-24 lg:pr-4 lg:pb-5 space-y-2">
-            <div className="h-3 w-32 rounded bg-white/10" />
-            <div className="h-3 w-52 rounded bg-white/10" />
-            <div className="h-3 w-40 rounded bg-white/10" />
+            <div className="h-3 w-32 rounded bg-muted-foreground/25" />
+            <div className="h-3 w-52 rounded bg-muted-foreground/25" />
+            <div className="h-3 w-40 rounded bg-muted-foreground/25" />
           </div>
         </div>
 
         {/* Action rail placeholder */}
         <div className="absolute right-1.5 bottom-24 z-20 lg:static lg:right-auto lg:bottom-auto flex flex-col items-center gap-4 pb-4">
-          <div className="w-12 h-12 rounded-full bg-white/[0.06] animate-pulse mb-2" />
+          <div className="w-12 h-12 rounded-full bg-muted-foreground/25 animate-pulse mb-2" />
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="w-11 h-11 rounded-full bg-white/[0.06] animate-pulse" />
+            <div key={i} className="w-11 h-11 rounded-full bg-muted-foreground/25 animate-pulse" />
           ))}
         </div>
       </div>

@@ -1,125 +1,264 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ImagePlus, Lock, MessageCircle, UsersRound, Video } from 'lucide-react';
+import {
+  ArrowLeft, Globe2, Heart, ImagePlus, Loader2, Lock, MessageCircle,
+  Share2,
+  Send, UserPlus, UsersRound, Video, X,
+} from 'lucide-react';
+import { chatMediaApi, usersApi, type ChatMediaUpload, type FollowPerson } from '@/lib/api';
 import { useToast } from '@/lib/stores';
 import { GroupMembersModal } from '@/components/social/GroupMembersModal';
-import { MessageComposer } from '@/components/chat/MessageComposer';
 import { MessageMedia } from '@/components/chat/MessageMedia';
-import { SYSTEM_GROUPS, type InterestGroup, useGroup, useGroupActions, useGroupMessages } from '@/hooks/useGroups';
+import { UserAvatar } from '@/components/UserAvatar';
+import {
+  SYSTEM_GROUPS,
+  type GroupPost,
+  type InterestGroup,
+  useGroup,
+  useGroupActions,
+  useGroupComments,
+  useGroupPostLikes,
+  useGroupPosts,
+} from '@/hooks/useGroups';
 
 function timeLabel(date: Date | null) {
-  return date ? date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : 'Sending...';
+  if (!date) return 'Publishing...';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' at ' +
+    date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
-export default function GroupDiscussionPage() {
+function PostComposer({ onCreate }: { onCreate: (text: string, media?: ChatMediaUpload) => Promise<void> }) {
+  const { addToast } = useToast();
+  const [text, setText] = useState('');
+  const [media, setMedia] = useState<ChatMediaUpload | undefined>();
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const imageRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
+
+  const upload = async (file?: File) => {
+    if (!file || uploading) return;
+    setUploading(true);
+    try {
+      setMedia(await chatMediaApi.upload(file));
+    } catch (error) {
+      addToast({ message: error instanceof Error ? error.message : 'Could not attach that media.', type: 'error', duration: 5000 });
+    } finally {
+      setUploading(false);
+      if (imageRef.current) imageRef.current.value = '';
+      if (videoRef.current) videoRef.current.value = '';
+    }
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if ((!text.trim() && !media) || saving || uploading) return;
+    setSaving(true);
+    try {
+      await onCreate(text, media);
+      setText('');
+      setMedia(undefined);
+    } catch (error) {
+      addToast({ message: error instanceof Error ? error.message : 'Could not publish your post.', type: 'error', duration: 5000 });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="glass-card p-4">
+      <textarea value={text} onChange={(event) => setText(event.target.value)} maxLength={4000} rows={3} placeholder="Share something with the group..." className="w-full resize-none bg-transparent text-sm text-foreground placeholder-muted-foreground outline-none" />
+      {media && <div className="relative mt-3 w-fit overflow-hidden border border-border"><MessageMedia media={media} /><button type="button" onClick={() => setMedia(undefined)} aria-label="Remove attachment" className="absolute right-2 top-2 w-8 h-8 bg-black/70 text-white flex items-center justify-center"><X size={16} /></button></div>}
+      {uploading && <p className="mt-2 text-xs text-muted-foreground">Uploading and checking media...</p>}
+      <div className="mt-3 pt-3 border-t border-border flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1">
+          <input ref={imageRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(event) => void upload(event.target.files?.[0])} />
+          <input ref={videoRef} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={(event) => void upload(event.target.files?.[0])} />
+          <button type="button" onClick={() => imageRef.current?.click()} disabled={uploading} className="inline-flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground"><ImagePlus size={18} /> Photo</button>
+          <button type="button" onClick={() => videoRef.current?.click()} disabled={uploading} className="inline-flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground"><Video size={18} /> Video</button>
+        </div>
+        <button disabled={saving || uploading || (!text.trim() && !media)} className="px-5 py-2 brand-gradient text-white text-sm font-semibold disabled:opacity-40">{saving ? 'Posting...' : 'Post'}</button>
+      </div>
+    </form>
+  );
+}
+
+function GroupPostCard({ groupId, groupName, post, isMember }: { groupId: string; groupName: string; post: GroupPost; isMember: boolean }) {
+  const { comments, loading, addComment } = useGroupComments(groupId, post.id, isMember);
+  const { likeCount, liked, toggleLike } = useGroupPostLikes(groupId, post.id, isMember);
+  const { addToast } = useToast();
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [likePending, setLikePending] = useState(false);
+
+  const handleLike = async () => {
+    if (likePending) return;
+    setLikePending(true);
+    try {
+      await toggleLike();
+    } catch (error) {
+      addToast({ message: error instanceof Error ? error.message : 'Could not update your like.', type: 'error', duration: 4000 });
+    } finally {
+      setLikePending(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/app/groups/${groupId}#group-post-${post.id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${post.authorName} in ${groupName}`,
+          ...(post.text ? { text: post.text } : {}),
+          url,
+        });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      addToast({ message: 'Link copied to clipboard.', type: 'success', duration: 3000 });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      addToast({ message: 'Could not share this post.', type: 'error', duration: 4000 });
+    }
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!draft.trim() || sending) return;
+    setSending(true);
+    try { await addComment(draft); setDraft(''); } finally { setSending(false); }
+  };
+
+  return (
+    <article id={`group-post-${post.id}`} className="glass-card overflow-hidden">
+      <div className="p-4 flex items-center gap-3">
+        <UserAvatar src={post.authorAvatarUrl} name={post.authorName} size="sm" />
+        <div className="min-w-0"><p className="text-sm font-semibold text-foreground truncate">{post.authorName}</p><p className="text-xs text-muted-foreground">{timeLabel(post.createdAt)}</p></div>
+      </div>
+      {post.text && <p className="px-4 pb-4 text-sm leading-6 text-foreground whitespace-pre-wrap break-words">{post.text}</p>}
+      {post.media && <div className="w-full bg-black/10 flex justify-center [&_img]:w-full [&_img]:max-h-[36rem] [&_video]:w-full [&_video]:max-h-[36rem]"><MessageMedia media={post.media} /></div>}
+      <div className="border-t border-border grid grid-cols-3">
+        <button onClick={() => void handleLike()} disabled={likePending} aria-label={liked ? 'Unlike post' : 'Like post'} className={`px-2 py-3 flex items-center justify-center gap-2 text-sm disabled:opacity-50 ${liked ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+          <Heart size={17} fill={liked ? 'currentColor' : 'none'} /> {likeCount}
+        </button>
+        <button onClick={() => setCommentsOpen((open) => !open)} aria-expanded={commentsOpen} className="px-2 py-3 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <MessageCircle size={17} /> {comments.length}
+        </button>
+        <button onClick={() => void handleShare()} className="px-2 py-3 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <Share2 size={17} /> Share
+        </button>
+      </div>
+      {commentsOpen && (
+        <div className="border-t border-border p-4 space-y-4">
+          {loading ? <p className="text-xs text-muted-foreground">Loading comments...</p> : comments.length === 0 ? <p className="text-xs text-muted-foreground">Be the first to comment.</p> : comments.map((comment) => (
+            <div key={comment.id} className="flex items-start gap-2.5"><UserAvatar src={comment.authorAvatarUrl} name={comment.authorName} size="sm" ring={false} className="!w-8 !h-8" /><div className="min-w-0 flex-1 bg-muted px-3 py-2"><p className="text-xs font-semibold text-foreground">{comment.authorName}</p><p className="mt-0.5 text-sm text-foreground whitespace-pre-wrap break-words">{comment.text}</p></div></div>
+          ))}
+          <form onSubmit={submit} className="flex items-center gap-2">
+            <input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={1000} placeholder="Write a comment..." className="min-w-0 flex-1 px-3 py-2 glass-input text-sm text-foreground placeholder-muted-foreground" />
+            <button disabled={!draft.trim() || sending} aria-label="Post comment" className="w-10 h-10 brand-gradient text-white flex items-center justify-center disabled:opacity-40">{sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}</button>
+          </form>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function InviteModal({ group, onClose }: { group: InterestGroup; onClose: () => void }) {
+  const { inviteMember } = useGroupActions();
+  const { addToast } = useToast();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<FollowPerson[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
+
+  useEffect(() => {
+    const value = query.trim();
+    if (value.length < 2) { setResults([]); return; }
+    const timer = setTimeout(() => {
+      setLoading(true);
+      usersApi.search(value, null, 10).then((page) => setResults(page.items)).catch(() => setResults([])).finally(() => setLoading(false));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const invite = async (person: FollowPerson) => {
+    setPending(person.id);
+    try { await inviteMember(group, person.id); addToast({ message: `Invitation sent to ${person.displayName}.`, type: 'success', duration: 3000 }); }
+    catch (error) { addToast({ message: error instanceof Error ? error.message : 'Could not send the invitation.', type: 'error', duration: 4000 }); }
+    finally { setPending(null); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 p-4 flex items-center justify-center">
+      <div className="glass-card w-full max-w-md max-h-[75vh] flex flex-col">
+        <div className="p-4 border-b border-border flex items-center justify-between"><h2 className="font-bold text-foreground">Invite people</h2><button onClick={onClose} aria-label="Close"><X size={20} /></button></div>
+        <div className="p-4"><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name or username" className="w-full px-3 py-2.5 glass-input text-sm text-foreground placeholder-muted-foreground" /></div>
+        <div className="overflow-y-auto px-4 pb-4">
+          {loading ? <p className="py-6 text-center text-sm text-muted-foreground">Searching...</p> : results.map((person) => {
+            const unavailable = group.memberIds.includes(person.id) || group.invitedMemberIds.includes(person.id);
+            return <div key={person.id} className="flex items-center gap-3 py-3 border-t border-border"><UserAvatar src={person.avatarUrl} name={person.displayName} size="sm" /><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-foreground truncate">{person.displayName}</p><p className="text-xs text-muted-foreground truncate">@{person.username}</p></div><button onClick={() => void invite(person)} disabled={unavailable || pending === person.id} className="px-3 py-2 brand-gradient text-white text-xs font-semibold disabled:opacity-40">{unavailable ? 'Invited' : pending === person.id ? 'Sending...' : 'Invite'}</button></div>;
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function GroupPage() {
   const params = useParams<{ groupId: string }>();
   const { group, loading } = useGroup(params.groupId);
   const { user, joinGroup, approveRequest, createSystemGroup } = useGroupActions();
   const { addToast } = useToast();
   const systemSource = SYSTEM_GROUPS.find((entry) => entry.id === params.groupId);
   const displayGroup: InterestGroup | null = group ?? (systemSource ? {
-    ...systemSource,
-    privacy: 'open',
-    systemCreated: true,
-    ownerId: null,
-    memberIds: [],
-    pendingMemberIds: [],
-    createdAt: null,
+    ...systemSource, privacy: 'open', systemCreated: true, ownerId: null, memberIds: [], pendingMemberIds: [], invitedMemberIds: [], createdAt: null,
   } : null);
   const isMember = Boolean(group && user && group.memberIds.includes(user.id));
   const isOwner = Boolean(group && user?.id === group.ownerId);
-  const { messages, loading: messagesLoading, sendMessage } = useGroupMessages(params.groupId, isMember);
+  const { posts, loading: postsLoading, createPost } = useGroupPosts(params.groupId, isMember);
   const [joining, setJoining] = useState(false);
-  const [sending, setSending] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+  if (loading) return <div className="p-8 text-sm text-muted-foreground">Opening group...</div>;
+  if (!displayGroup) return <div className="p-8 text-sm text-muted-foreground">This group could not be found.</div>;
+  const requested = Boolean(user && displayGroup.pendingMemberIds.includes(user.id));
 
   const join = async () => {
-    if (!displayGroup || joining) return;
     setJoining(true);
     try {
       if (!group && systemSource) await createSystemGroup(systemSource.id);
       else await joinGroup(displayGroup);
       addToast({ message: displayGroup.privacy === 'open' ? 'You joined the group.' : 'Request sent to the group owner.', type: 'success', duration: 3000 });
-    } catch (error) {
-      addToast({ message: error instanceof Error ? error.message : 'Could not update membership.', type: 'error', duration: 4000 });
-    } finally {
-      setJoining(false);
-    }
+    } catch (error) { addToast({ message: error instanceof Error ? error.message : 'Could not join this group.', type: 'error', duration: 4000 }); }
+    finally { setJoining(false); }
   };
 
-  if (loading) return <div className="p-8 text-sm text-muted-foreground">Opening group...</div>;
-  if (!displayGroup) return <div className="p-8 text-sm text-muted-foreground">This group could not be found.</div>;
-
-  const requested = Boolean(user && displayGroup.pendingMemberIds.includes(user.id));
-
-  if (!isMember) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 pb-24">
-        <Link href="/app/groups" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={16} /> Groups</Link>
-        <section className="mt-5 overflow-hidden border border-white/10 bg-card">
-          <div className="min-h-64 sm:min-h-80 bg-[linear-gradient(135deg,#21162e_0%,#16131d_55%,#381127_100%)] flex items-end p-6 sm:p-10">
-            <div className="max-w-2xl">
-              <span className="w-14 h-14 flex items-center justify-center bg-primary text-white"><UsersRound size={28} /></span>
-              <h1 className="mt-5 text-3xl sm:text-5xl font-bold text-white">{displayGroup.name}</h1>
-              <p className="mt-3 text-sm sm:text-base leading-7 text-white/70">{displayGroup.description}</p>
-            </div>
-          </div>
-          <div className="grid gap-6 p-6 sm:p-8 md:grid-cols-[1fr_auto] md:items-center">
-            <div>
-              <p className="text-sm font-semibold text-foreground">A space for useful, respectful conversation</p>
-              <div className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground">
-                <span className="inline-flex items-center gap-2"><MessageCircle size={16} /> Live discussion</span>
-                <span className="inline-flex items-center gap-2"><ImagePlus size={16} /> Photos and GIFs</span>
-                <span className="inline-flex items-center gap-2"><Video size={16} /> Videos</span>
-                {displayGroup.privacy === 'private' && <span className="inline-flex items-center gap-2"><Lock size={16} /> Approval required</span>}
-              </div>
-              <p className="mt-4 text-xs text-muted-foreground">{displayGroup.memberIds.length} {displayGroup.memberIds.length === 1 ? 'member' : 'members'}</p>
-            </div>
-            {requested ? (
-              <span className="px-6 py-3 text-sm font-semibold text-muted-foreground glass-chip">Request pending</span>
-            ) : (
-              <button onClick={join} disabled={joining} className="px-8 py-3 brand-gradient text-white text-sm font-semibold disabled:opacity-50">
-                {joining ? 'Joining...' : displayGroup.privacy === 'open' ? 'Join group' : 'Request to join'}
-              </button>
-            )}
-          </div>
-        </section>
-      </div>
-    );
-  }
-
   return (
-    <div className="h-full min-h-0 flex flex-col max-w-4xl mx-auto border-x border-white/10">
-      <header className="p-4 border-b border-white/10 flex items-center gap-3 flex-shrink-0">
-        <Link href="/app/groups" aria-label="Back to groups" className="w-9 h-9 glass-chip flex items-center justify-center text-foreground"><ArrowLeft size={17} /></Link>
-        <span className="w-10 h-10 bg-primary text-white flex items-center justify-center"><UsersRound size={20} /></span>
-        <div className="min-w-0 flex-1"><h1 className="font-bold text-foreground truncate">{displayGroup.name}</h1><button onClick={() => setMembersOpen(true)} className="text-xs text-muted-foreground hover:text-foreground hover:underline">{displayGroup.memberIds.length} members {displayGroup.privacy === 'private' && '· Private'}</button></div>
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 pb-24">
+      <Link href="/app/explore#groups" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={16} /> Explore groups</Link>
+      <header className="mt-4 border border-border bg-card p-5 sm:p-7">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
+          <div><span className="w-12 h-12 brand-gradient text-white flex items-center justify-center"><UsersRound size={24} /></span><h1 className="mt-4 text-2xl sm:text-3xl font-bold text-foreground">{displayGroup.name}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{displayGroup.description}</p><button onClick={() => group && setMembersOpen(true)} disabled={!group} className="mt-3 inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"><UsersRound size={14} /> {displayGroup.memberIds.length} members · {displayGroup.privacy === 'private' ? <><Lock size={12} /> Private group</> : <><Globe2 size={12} /> Public group</>}</button></div>
+          {isMember ? <button onClick={() => setInviteOpen(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 glass-chip text-foreground text-sm font-semibold"><UserPlus size={17} /> Invite people</button> : requested ? <span className="px-4 py-2.5 glass-chip text-sm text-muted-foreground">Request pending</span> : <button onClick={() => void join()} disabled={joining} className="px-6 py-2.5 brand-gradient text-white text-sm font-semibold disabled:opacity-50">{joining ? 'Joining...' : displayGroup.privacy === 'open' ? 'Join group' : 'Request to join'}</button>}
+        </div>
       </header>
 
-      {isOwner && displayGroup.pendingMemberIds.length > 0 && (
-        <div className="p-3 border-b border-white/10 bg-sidebar-accent/50">
-          <p className="text-xs font-semibold text-foreground">Membership requests</p>
-          <div className="mt-2 flex flex-wrap gap-2">{displayGroup.pendingMemberIds.map((memberId) => <button key={memberId} onClick={() => approveRequest(displayGroup, memberId)} className="px-3 py-1.5 glass-chip text-xs text-foreground">Approve member</button>)}</div>
-        </div>
-      )}
+      {isOwner && displayGroup.pendingMemberIds.length > 0 && <section className="mt-4 glass-card p-4"><h2 className="text-sm font-bold text-foreground">Membership requests</h2><div className="mt-3 flex flex-wrap gap-2">{displayGroup.pendingMemberIds.map((memberId) => <button key={memberId} onClick={() => approveRequest(displayGroup, memberId)} className="px-3 py-2 glass-chip text-xs text-foreground">Approve member</button>)}</div></section>}
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
-        {messagesLoading ? <p className="text-sm text-muted-foreground">Loading messages...</p> : messages.length === 0 ? <p className="h-full flex items-center justify-center text-sm text-muted-foreground">Start the conversation.</p> : messages.map((message) => {
-          const mine = message.senderId === user?.id;
-          return <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[78%] overflow-hidden ${mine ? 'brand-gradient text-white' : 'glass-chip text-foreground'}`}><div className="px-3 pt-2 text-xs font-semibold opacity-80">{mine ? 'You' : message.senderName}</div>{message.media && <div className="mt-2"><MessageMedia media={message.media} /></div>}{message.text && <p className="px-3 pt-2 text-sm whitespace-pre-wrap break-words">{message.text}</p>}<p className="px-3 pb-2 mt-1 text-[10px] text-right opacity-70">{timeLabel(message.timestamp)}</p></div></div>;
-        })}
-        <div ref={bottomRef} />
-      </div>
-      <MessageComposer placeholder={`Message ${displayGroup.name}`} sending={sending} onSend={async (text, media) => { setSending(true); try { await sendMessage(text, media); } finally { setSending(false); } }} />
-      {membersOpen && <GroupMembersModal memberIds={displayGroup.memberIds} onClose={() => setMembersOpen(false)} />}
+      {isMember ? (
+        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_15rem] lg:items-start">
+          <main className="min-w-0 space-y-4"><PostComposer onCreate={createPost} />{postsLoading ? <div className="glass-card h-40 animate-pulse" /> : posts.length === 0 ? <div className="border border-border p-10 text-center"><p className="font-semibold text-foreground">No posts yet</p><p className="mt-1 text-sm text-muted-foreground">Start the conversation with the first group post.</p></div> : posts.map((post) => <GroupPostCard key={post.id} groupId={params.groupId} groupName={displayGroup.name} post={post} isMember={isMember} />)}</main>
+          <aside className="border border-border bg-card p-4"><h2 className="text-sm font-bold text-foreground">About this group</h2><p className="mt-2 text-xs leading-5 text-muted-foreground">Members can publish text, photos, and videos, then discuss each post in its comments.</p></aside>
+        </div>
+      ) : <div className="mt-5 border border-border p-8 text-center"><p className="font-semibold text-foreground">Join to see group posts</p><p className="mt-1 text-sm text-muted-foreground">{displayGroup.privacy === 'private' ? 'Private group posts are visible to approved members.' : 'Become a member to publish and join the discussion.'}</p></div>}
+
+      {membersOpen && group && <GroupMembersModal memberIds={group.memberIds} onClose={() => setMembersOpen(false)} />}
+      {inviteOpen && group && <InviteModal group={group} onClose={() => setInviteOpen(false)} />}
     </div>
   );
 }

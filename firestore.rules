@@ -108,7 +108,7 @@ service cloud.firestore {
 
       function onlyMembershipChanged() {
         return request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['memberIds', 'pendingMemberIds']);
+          .hasOnly(['memberIds', 'pendingMemberIds', 'invitedMemberIds']);
       }
 
       function addsSelfAsMember() {
@@ -116,7 +116,8 @@ service cloud.firestore {
           && request.resource.data.memberIds.hasOnly(
             resource.data.memberIds.concat([request.auth.uid])
           )
-          && request.resource.data.pendingMemberIds == resource.data.pendingMemberIds;
+          && request.resource.data.pendingMemberIds == resource.data.pendingMemberIds
+          && request.resource.data.get('invitedMemberIds', []) == resource.data.get('invitedMemberIds', []);
       }
 
       function addsSelfAsRequest() {
@@ -124,7 +125,24 @@ service cloud.firestore {
           && request.resource.data.pendingMemberIds.hasAll(resource.data.pendingMemberIds)
           && request.resource.data.pendingMemberIds.hasOnly(
             resource.data.pendingMemberIds.concat([request.auth.uid])
-          );
+          )
+          && request.resource.data.get('invitedMemberIds', []) == resource.data.get('invitedMemberIds', []);
+      }
+
+      function addsInvitation() {
+        return isMember()
+          && request.resource.data.memberIds == resource.data.memberIds
+          && request.resource.data.pendingMemberIds == resource.data.pendingMemberIds
+          && request.resource.data.get('invitedMemberIds', []).hasAll(resource.data.get('invitedMemberIds', []));
+      }
+
+      function acceptsOwnInvitation() {
+        return request.auth.uid in resource.data.get('invitedMemberIds', [])
+          && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+          && request.resource.data.memberIds.hasOnly(resource.data.memberIds.concat([request.auth.uid]))
+          && request.resource.data.pendingMemberIds == resource.data.pendingMemberIds
+          && resource.data.get('invitedMemberIds', []).hasAll(request.resource.data.get('invitedMemberIds', []))
+          && resource.data.get('invitedMemberIds', []).hasOnly(request.resource.data.get('invitedMemberIds', []).concat([request.auth.uid]));
       }
 
       // Groups are discoverable so people can request membership, while their
@@ -135,13 +153,22 @@ service cloud.firestore {
                     && request.auth.uid in request.resource.data.memberIds
                     && request.resource.data.memberIds.size() == 1
                     && request.resource.data.pendingMemberIds.size() == 0
+                    && request.resource.data.invitedMemberIds.size() == 0
                     && ((request.resource.data.systemCreated == false
                          && request.resource.data.ownerId == request.auth.uid)
                         || (request.resource.data.systemCreated == true
                             && request.resource.data.ownerId == null
                             && (groupId == 'single-forum'
                                 || groupId == 'marriage-advice'
-                                || groupId == 'health-solutions')));
+                                || groupId == 'health-solutions'
+                                || groupId == 'career-jobs'
+                                || groupId == 'business'
+                                || groupId == 'technology-ai'
+                                || groupId == 'personal-finance'
+                                || groupId == 'parenting'
+                                || groupId == 'entertainment'
+                                || groupId == 'sports'
+                                || groupId == 'food-cooking')));
 
       // Anyone can self-join an open group or submit one private-group request.
       // Only an owner can resolve private membership, and all other group fields
@@ -152,7 +179,9 @@ service cloud.firestore {
                     && request.resource.data.systemCreated == resource.data.systemCreated
                     && ((resource.data.privacy == 'open' && addsSelfAsMember())
                         || (resource.data.privacy == 'private'
-                            && (addsSelfAsRequest() || isOwner())));
+                            && (addsSelfAsRequest() || isOwner()))
+                        || addsInvitation()
+                        || acceptsOwnInvitation());
 
       allow delete: if false;
 
@@ -171,6 +200,52 @@ service cloud.firestore {
                           || request.resource.data.keys().hasAll(['media']))
                       && request.resource.data.text.size() <= 4000;
         allow update, delete: if false;
+      }
+
+      match /posts/{postId} {
+        function approvedMember() {
+          return request.auth != null
+                 && exists(/databases/$(database)/documents/groups/$(groupId))
+                 && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+        }
+
+        allow read: if approvedMember();
+        allow create: if approvedMember()
+                      && request.resource.data.authorId == request.auth.uid
+                      && request.resource.data.text is string
+                      && request.resource.data.text.size() <= 4000
+                      && (request.resource.data.text.size() > 0
+                          || request.resource.data.keys().hasAll(['media']));
+        allow update, delete: if false;
+
+        match /likes/{userId} {
+          function parentPostExists() {
+            return exists(/databases/$(database)/documents/groups/$(groupId)/posts/$(postId));
+          }
+
+          allow read: if approvedMember() && parentPostExists();
+          allow create: if approvedMember()
+                        && parentPostExists()
+                        && userId == request.auth.uid
+                        && request.resource.data.keys().hasAll(['userId', 'createdAt'])
+                        && request.resource.data.keys().hasOnly(['userId', 'createdAt'])
+                        && request.resource.data.userId == request.auth.uid;
+          allow delete: if approvedMember()
+                        && parentPostExists()
+                        && userId == request.auth.uid
+                        && resource.data.userId == request.auth.uid;
+          allow update: if false;
+        }
+
+        match /comments/{commentId} {
+          allow read: if approvedMember();
+          allow create: if approvedMember()
+                        && request.resource.data.authorId == request.auth.uid
+                        && request.resource.data.text is string
+                        && request.resource.data.text.size() > 0
+                        && request.resource.data.text.size() <= 1000;
+          allow update, delete: if false;
+        }
       }
     }
   }

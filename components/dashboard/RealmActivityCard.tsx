@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import NextLink from 'next/link';
 import { ShoppingBag, TrendingDown, UserPlus } from 'lucide-react';
 import { DASH } from './theme';
@@ -70,13 +72,8 @@ export const RealmActivityCard = ({ entries }: { entries: RealmActivityEntry[] }
               {/* Avatar where a person drove the event, with the event type as a
                   small badge; falls back to a bare icon tile with no avatar. */}
               <span className="relative flex-shrink-0">
-                <span className="w-9 h-9 rounded-full overflow-hidden brand-gradient flex items-center justify-center text-xs font-bold text-white">
-                  {entry.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={entry.avatarUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    entry.username.charAt(0).toUpperCase()
-                  )}
+                <span className="w-9 h-9 rounded-full overflow-hidden bg-black dark:bg-white flex items-center justify-center text-xs font-bold text-white">
+                  <UserAvatar src={entry.avatarUrl} name={entry.username} fill ring={false} />
                 </span>
                 <span
                   className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center"

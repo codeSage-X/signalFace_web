@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 /**
  * Creator Realm Profile - The actual creator profile and Signal owner.
  * 
@@ -289,14 +291,9 @@ export default function CreatorRealmPage() {
                 onClick={() => realm.iconUrl && setIconPreviewOpen(true)}
                 disabled={!realm.iconUrl}
                 aria-label={`View ${realm.name}'s profile picture`}
-                className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl brand-gradient flex items-center justify-center text-3xl font-bold text-white overflow-hidden ring-4 ring-background enabled:cursor-zoom-in enabled:hover:brightness-110 transition disabled:cursor-default"
+                className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-black dark:bg-white flex items-center justify-center text-3xl font-bold text-white overflow-hidden ring-4 ring-background enabled:cursor-zoom-in enabled:hover:brightness-110 transition disabled:cursor-default"
             >
-              {realm.iconUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={realm.iconUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                realm.name.charAt(0).toUpperCase()
-              )}
+              <UserAvatar src={realm.iconUrl} name={realm.name} fill ring={false} />
             </button>
 
             {canManage && (
@@ -594,7 +591,7 @@ export default function CreatorRealmPage() {
             className="relative h-[min(72vw,28rem)] w-[min(72vw,28rem)] overflow-hidden rounded-full bg-background ring-4 ring-white/20 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <img src={realm.iconUrl} alt={`${realm.name}'s profile picture`} className="h-full w-full object-cover" />
+            <UserAvatar src={realm.iconUrl} name={realm.name} fill ring={false} />
             <button
               type="button"
               onClick={() => setIconPreviewOpen(false)}

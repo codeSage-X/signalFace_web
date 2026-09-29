@@ -20,6 +20,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { PostDetailModal } from '@/components/social/PostDetailModal';
 import { FollowersFollowingModal } from '@/components/social/FollowersFollowingModal';
 import { ModeratedMedia } from '@/components/social/ModeratedMedia';
+import { UserAvatar } from '@/components/UserAvatar';
 
 const PAGE_SIZE = 12;
 
@@ -215,13 +216,6 @@ export default function PublicProfilePage() {
     );
   }
 
-  const initials = profile.displayName
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0] ?? '')
-    .join('')
-    .toUpperCase();
-
   return (
     <div className="pb-10">
       <div className="px-6 lg:px-10 pt-6 lg:pt-16 pb-0">
@@ -240,13 +234,9 @@ export default function PublicProfilePage() {
             onClick={() => profile.avatarUrl && setAvatarPreviewOpen(true)}
             disabled={!profile.avatarUrl}
             aria-label={`View ${profile.displayName}'s profile picture`}
-            className="w-28 h-28 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-3xl font-bold text-white overflow-hidden ring-4 ring-border flex-shrink-0 disabled:cursor-default enabled:cursor-zoom-in enabled:hover:brightness-110 transition"
+            className="w-28 h-28 rounded-full overflow-hidden ring-4 ring-border flex-shrink-0 disabled:cursor-default enabled:cursor-zoom-in enabled:hover:brightness-110 transition"
           >
-            {profile.avatarUrl ? (
-              <img src={profile.avatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              initials
-            )}
+            <UserAvatar src={profile.avatarUrl} name={profile.displayName} size="xl" ring={false} />
           </button>
 
           {/* Info */}
@@ -403,11 +393,7 @@ export default function PublicProfilePage() {
             className="relative h-[min(72vw,28rem)] w-[min(72vw,28rem)] overflow-hidden rounded-full bg-background ring-4 ring-white/20 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <img
-              src={profile.avatarUrl}
-              alt={`${profile.displayName}'s profile picture`}
-              className="h-full w-full object-cover"
-            />
+            <UserAvatar src={profile.avatarUrl} name={profile.displayName} fill ring={false} />
             <button
               type="button"
               onClick={() => setAvatarPreviewOpen(false)}

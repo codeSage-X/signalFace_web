@@ -314,17 +314,8 @@ function FriendCard({
   return (
     <div className="glass-card glass-hover rounded-2xl overflow-hidden flex flex-col h-full">
       <Link href={`/app/u/${person.username}`} className="flex-shrink-0">
-        <div className="aspect-square overflow-hidden bg-gradient-to-br from-violet-500/25 to-fuchsia-500/10">
-          {person.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={person.avatarUrl} alt={person.displayName} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-violet-500 to-fuchsia-500">
-              <span className="text-white text-3xl font-bold">
-                {person.displayName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-          )}
+        <div className="relative aspect-square overflow-hidden bg-black dark:bg-white">
+          <UserAvatar src={person.avatarUrl} name={person.displayName} fill ring={false} className="absolute inset-0" />
         </div>
       </Link>
 

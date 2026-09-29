@@ -383,6 +383,93 @@ export interface MarketOverview {
   marketTrend: Array<{ date: string; value: number }>;
 }
 
+export type MarketplaceCategory =
+  | 'ELECTRONICS'
+  | 'FASHION'
+  | 'VEHICLES'
+  | 'HOME_GARDEN'
+  | 'PHONES_TABLETS'
+  | 'PROPERTY'
+  | 'BEAUTY'
+  | 'SPORTS'
+  | 'OTHER';
+
+export type MarketplaceCondition = 'NEW' | 'LIKE_NEW' | 'USED' | 'REFURBISHED';
+export type MarketplaceListingStatus = 'ACTIVE' | 'RESERVED' | 'SOLD' | 'CANCELED';
+export type MarketplaceShopType = 'PLAZA' | 'STORE' | 'SUPERMARKET';
+export type MarketplaceFulfillment = 'PAY_ON_DELIVERY' | 'PICKUP';
+export type MarketplaceOrderStatus = 'PENDING' | 'ACCEPTED' | 'COMPLETED' | 'CANCELED';
+export interface MarketplacePerson {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+}
+export interface MarketplaceShop {
+  id: string;
+  ownerId: string;
+  name: string;
+  type: MarketplaceShopType;
+  description: string;
+  location: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface MarketplaceStorefront extends MarketplaceShop {
+  owner: MarketplacePerson;
+  availableListings: number;
+  isMine: boolean;
+}
+export interface MarketplaceOrderInput {
+  quantity: number;
+  fulfillment: MarketplaceFulfillment;
+  note?: string;
+}
+
+export interface MarketplaceListing {
+  id: string;
+  title: string;
+  description: string;
+  category: MarketplaceCategory;
+  condition: MarketplaceCondition;
+  price: string;
+  currency: 'NGN';
+  location: string;
+  negotiable: boolean;
+  imageUrls: string[];
+  status: MarketplaceListingStatus;
+  stockQuantity: number;
+  shop: MarketplaceShop | null;
+  seller: { id: string; username: string; displayName: string; avatarUrl: string | null };
+  isMine: boolean;
+  interestCount: number;
+  purchaseRequests?: Array<{
+    id: string;
+    status: 'PENDING' | 'ACCEPTED';
+    note: string | null;
+    quantity: number;
+    fulfillment: MarketplaceFulfillment;
+    unitPrice: string;
+    createdAt: string;
+    buyer: { id: string; username: string; displayName: string; avatarUrl: string | null };
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MarketplaceOrder {
+  id: string;
+  status: MarketplaceOrderStatus;
+  quantity: number;
+  fulfillment: MarketplaceFulfillment;
+  unitPrice: string;
+  total: string;
+  buyer: MarketplacePerson;
+  note: string | null;
+  createdAt: string;
+  listing: MarketplaceListing;
+}
+
 export interface WalletHolding {
   signalId: string;
   creatorName: string;
@@ -616,6 +703,76 @@ export const signalsApi = {
 
 export const marketApi = {
   getOverview: () => request<MarketOverview>('/market/overview'),
+  myShop: () => request<MarketplaceStorefront | null>('/market/shops/mine'),
+  getShop: (id: string) => request<MarketplaceStorefront>(`/market/shops/${encodeURIComponent(id)}`),
+  createShop: (body: { name: string; type: MarketplaceShopType; description: string; location: string }) =>
+    request<MarketplaceStorefront>('/market/shops', { method: 'POST', body: JSON.stringify(body) }),
+  listShops: (params: { q?: string; shopType?: MarketplaceShopType | ''; cursor?: string | null } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set('q', params.q);
+    if (params.shopType) qs.set('shopType', params.shopType);
+    if (params.cursor) qs.set('cursor', params.cursor);
+    return request<Page<MarketplaceStorefront>>(`/market/shops?${qs}`);
+  },
+  getProduct: (id: string) => request<MarketplaceListing>(`/market/listings/${encodeURIComponent(id)}`),
+  listProducts: (params?: {
+    q?: string;
+    category?: MarketplaceCategory | '';
+    shopId?: string;
+    shopType?: MarketplaceShopType | '';
+    cursor?: string | null;
+    limit?: number;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set('q', params.q);
+    if (params?.category) qs.set('category', params.category);
+    if (params?.shopId) qs.set('shopId', params.shopId);
+    if (params?.shopType) qs.set('shopType', params.shopType);
+    if (params?.cursor) qs.set('cursor', params.cursor);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    const query = qs.toString();
+    return request<Page<MarketplaceListing>>(`/market/listings${query ? `?${query}` : ''}`);
+  },
+  myProducts: () => request<{ items: MarketplaceListing[] }>('/market/listings/mine'),
+  myOrders: () => request<{ items: MarketplaceOrder[] }>('/market/orders/mine'),
+  sellerOrders: () => request<{ items: MarketplaceOrder[] }>('/market/orders/selling'),
+  setOrderStatus: (id: string, status: Exclude<MarketplaceOrderStatus, 'PENDING'>) =>
+    request<MarketplaceOrder>(`/market/orders/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  setStock: (id: string, stockQuantity: number) =>
+    request<MarketplaceListing>(`/market/listings/${encodeURIComponent(id)}/stock`, { method: 'PATCH', body: JSON.stringify({ stockQuantity }) }),
+  createProduct: (body: {
+    title: string;
+    description: string;
+    category: MarketplaceCategory;
+    condition: MarketplaceCondition;
+    price: number;
+    location: string;
+    negotiable: boolean;
+    stockQuantity: number;
+    images: File[];
+  }) => {
+    const form = new FormData();
+    form.append('title', body.title);
+    form.append('description', body.description);
+    form.append('category', body.category);
+    form.append('condition', body.condition);
+    form.append('price', String(body.price));
+    form.append('location', body.location);
+    form.append('negotiable', String(body.negotiable));
+    form.append('stockQuantity', String(body.stockQuantity));
+    body.images.forEach((image) => form.append('images', image));
+    return requestForm<MarketplaceListing>('/market/listings', form, { method: 'POST' });
+  },
+  buyProduct: (id: string, body: MarketplaceOrderInput) =>
+    request<MarketplaceOrder & { message: string }>(
+      `/market/listings/${encodeURIComponent(id)}/buy`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  setProductStatus: (id: string, status: 'ACTIVE' | 'SOLD' | 'CANCELED') =>
+    request<MarketplaceListing>(`/market/listings/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
 };
 
 export const p2pApi = {
@@ -998,6 +1155,10 @@ export const postsApi = {
   byUsername: (username: string, cursor?: string | null, limit?: number) =>
     request<Page<FeedPost>>(`/posts/user/${encodeURIComponent(username)}${pageQuery(cursor, limit)}`),
   getOne: (id: string) => request<FeedPost>(`/posts/${id}`),
+  moderationStatus: (id: string) =>
+    request<{ status: 'VISIBLE' | 'CENSORED' | 'REMOVED'; message: string | null }>(
+      `/posts/${encodeURIComponent(id)}/moderation-status`,
+    ),
   remove: (id: string) => request<{ id: string; deleted: boolean }>(`/posts/${id}`, { method: 'DELETE' }),
   toggleLike: (id: string) =>
     request<{ postId: string; liked: boolean; likeCount: number }>(`/posts/${id}/like`, {

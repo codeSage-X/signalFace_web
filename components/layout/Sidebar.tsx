@@ -10,7 +10,7 @@ import { walletApi } from '@/lib/api';
 import { formatSignalFaceCoins, formatUsd, usdToSignalFaceCoins } from '@/lib/utils';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faChartLine,
+  faStore,
   faUsers,
   faFire,
   faBriefcase,
@@ -24,6 +24,8 @@ import {
   faSignOut,
 } from '@fortawesome/free-solid-svg-icons';
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 // Dashboard is deliberately absent — it's reached from the profile page instead,
 // and Upload lives in the top bar's action pill rather than the nav list.
 // Exported so the mobile drawer offers exactly the same destinations.
@@ -33,7 +35,7 @@ export const navItems = [
   { href: '/app/creators', label: 'Creators', icon: faUsers },
   { href: '/app/friends', label: 'Friends', icon: faUserGroup },
   { href: '/app/messages', label: 'Messages', icon: faComments },
-  { href: '/app/market', label: 'Market', icon: faChartLine },
+  { href: '/app/market', label: 'Shopping Mall', icon: faStore },
   { href: '/app/signals', label: 'Signals', icon: faBriefcase },
   { href: '/app/watchlist', label: 'Watchlist', icon: faHeart },
   { href: '/app/rewards', label: 'Rewards', icon: faGift },
@@ -46,6 +48,7 @@ export const Sidebar = ({ unreadMessages = 0 }: { unreadMessages?: number }) => 
   const router = useRouter();
   const [balance, setBalance] = useState<number | null>(null);
   const [searchDraft, setSearchDraft] = useState('');
+  const [sidebarSearchActive, setSidebarSearchActive] = useState(false);
   const unreadLabel = unreadMessages > 99 ? '99+' : String(unreadMessages);
 
   useEffect(() => {
@@ -66,6 +69,17 @@ export const Sidebar = ({ unreadMessages = 0 }: { unreadMessages?: number }) => 
       cancelled = true;
     };
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (pathname !== '/app/search' || !sidebarSearchActive) return;
+
+    const timer = window.setTimeout(() => {
+      const term = searchDraft.trim();
+      router.replace(term ? `/app/search?q=${encodeURIComponent(term)}` : '/app/search');
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [pathname, router, searchDraft, sidebarSearchActive]);
 
   return (
     <div
@@ -101,15 +115,14 @@ export const Sidebar = ({ unreadMessages = 0 }: { unreadMessages?: number }) => 
           </Link>
         </div>
 
-        {/* Search — lives here rather than in a top bar. Submitting hands off to
-            the search page, which owns the query from the URL. */}
+        {/* Search opens the full results page immediately. Its URL is updated as
+            the user types so the larger search field and results stay in sync. */}
         <div className="px-4 pb-2">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               const term = searchDraft.trim();
-              if (!term) return;
-              router.push(`/app/search?q=${encodeURIComponent(term)}`);
+              router.replace(term ? `/app/search?q=${encodeURIComponent(term)}` : '/app/search');
             }}
             className="relative"
           >
@@ -121,8 +134,16 @@ export const Sidebar = ({ unreadMessages = 0 }: { unreadMessages?: number }) => 
               type="search"
               value={searchDraft}
               onChange={(e) => setSearchDraft(e.target.value)}
+              onFocus={() => {
+                setSidebarSearchActive(true);
+                if (pathname !== '/app/search') {
+                  const term = searchDraft.trim();
+                  router.push(term ? `/app/search?q=${encodeURIComponent(term)}` : '/app/search');
+                }
+              }}
               placeholder="Search"
               aria-label="Search"
+              autoComplete="off"
               className="w-full pl-10 pr-4 py-2.5 rounded-full text-sm text-white placeholder-white/40
                 border border-white/10 bg-white/[0.04] focus:outline-none focus:ring-2 focus:ring-primary"
             />
@@ -166,11 +187,11 @@ export const Sidebar = ({ unreadMessages = 0 }: { unreadMessages?: number }) => 
           <div className="pt-3 space-y-3">
             {/* Signal balance */}
             <div className="glass-card rounded-2xl p-4">
-              <p className="text-xs text-white/55">Signal Credit</p>
-              <p className="mt-1 text-xl font-bold text-white">
+              <p className="text-xs text-muted-foreground">Signal Credit</p>
+              <p className="mt-1 text-xl font-bold text-foreground">
                 {balance === null ? '—' : formatSignalFaceCoins(usdToSignalFaceCoins(balance))}
               </p>
-              <p className="text-xs text-white/40">
+              <p className="text-xs text-muted-foreground">
                 {balance === null ? 'Available to trade' : `${formatUsd(balance)} equivalent`}
               </p>
               <button
@@ -184,8 +205,8 @@ export const Sidebar = ({ unreadMessages = 0 }: { unreadMessages?: number }) => 
 
             {/* Refer & earn */}
             <div className="glass-brand rounded-2xl p-4">
-              <p className="text-sm font-bold text-white">Refer &amp; Earn</p>
-              <p className="mt-1 text-xs text-white/60 leading-relaxed">
+              <p className="text-sm font-bold text-foreground">Refer &amp; Earn</p>
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
                 Invite friends and earn <span className="text-primary font-semibold">20%</span> of
                 their trading fee
               </p>

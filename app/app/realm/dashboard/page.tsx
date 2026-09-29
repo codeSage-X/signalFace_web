@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import { useEffect, useMemo, useState } from 'react';
 import NextLink from 'next/link';
 import { BarChart3, Coins, Gift, Sparkles, Users } from 'lucide-react';
@@ -156,13 +158,8 @@ export default function CreatorDashboardPage() {
         {/* ── Page heading ─────────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="w-10 h-10 rounded-xl overflow-hidden brand-gradient flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-              {data.realm.iconUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={data.realm.iconUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                data.realm.name.charAt(0).toUpperCase()
-              )}
+            <span className="w-10 h-10 rounded-xl overflow-hidden bg-black dark:bg-white flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+              <UserAvatar src={data.realm.iconUrl} name={data.realm.name} fill ring={false} />
             </span>
             <div className="min-w-0">
               <h1 className="text-lg font-bold truncate" style={{ color: DASH.ink }}>

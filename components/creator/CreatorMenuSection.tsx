@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import NextLink from 'next/link';
 import { BadgeCheck, LayoutDashboard, Repeat, User } from 'lucide-react';
 import { useAuth, useProfileMode } from '@/lib/stores';
@@ -52,20 +54,8 @@ export const CreatorMenuSection = ({ onDismiss }: { onDismiss?: () => void }) =>
         className={itemClass}
       >
         {/* The avatar of whichever identity you'd be moving into. */}
-        <span className="w-6 h-6 rounded-full overflow-hidden brand-gradient flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
-          {inCreatorMode ? (
-            user.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              (user.displayName?.charAt(0) ?? '?').toUpperCase()
-            )
-          ) : realm?.iconUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={realm.iconUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            (realm?.name.charAt(0) ?? '?').toUpperCase()
-          )}
+        <span className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0">
+          <UserAvatar src={inCreatorMode ? user.avatarUrl : realm?.iconUrl} name={inCreatorMode ? user.displayName : realm?.name} fill ring={false} />
         </span>
 
         <span className="min-w-0 flex-1">

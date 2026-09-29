@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowLeft, Check, CheckCheck } from 'lucide-react';
@@ -14,14 +16,7 @@ const NEAR_BOTTOM_PX = 80;
 /** Marking read is debounced so a burst of snapshots is one write, not many. */
 const MARK_READ_DEBOUNCE_MS = 500;
 
-function initialsOf(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0] ?? '')
-    .join('')
-    .toUpperCase();
-}
+
 
 function timeLabel(date: Date | null) {
   if (!date) return 'Sending…';
@@ -150,13 +145,9 @@ export function ChatThread({
 
         <Link
           href={`/app/u/${other.username}`}
-          className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+          className="w-10 h-10 rounded-full overflow-hidden bg-black dark:bg-white flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
         >
-          {other.avatarUrl ? (
-            <img src={other.avatarUrl} alt="" className="w-full h-full object-cover" />
-          ) : (
-            initialsOf(other.displayName)
-          )}
+          <UserAvatar src={other.avatarUrl} name={other.displayName} fill ring={false} />
         </Link>
 
         <div className="min-w-0">

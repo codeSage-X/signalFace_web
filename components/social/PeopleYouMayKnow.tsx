@@ -1,5 +1,7 @@
 'use client';
 
+import { UserAvatar } from '@/components/UserAvatar';
+
 import { useEffect, useState } from 'react';
 import NextLink from 'next/link';
 import { Loader2, UserPlus, Check } from 'lucide-react';
@@ -14,14 +16,7 @@ function fmt(n: number) {
   return String(n);
 }
 
-function initialsOf(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p[0] ?? '')
-    .join('')
-    .toUpperCase();
-}
+
 
 /**
  * Accounts the viewer might want to follow, ranked server-side by mutual follows.
@@ -133,12 +128,8 @@ export function PeopleYouMayKnow({ limit = 10 }: { limit?: number }) {
             </button>
 
             <NextLink href={`/app/u/${person.username}`} className="flex flex-col items-center">
-              <span className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-sm font-bold mt-1">
-                {person.avatarUrl ? (
-                  <img src={person.avatarUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  initialsOf(person.displayName)
-                )}
+              <span className="w-16 h-16 rounded-full overflow-hidden bg-black dark:bg-white flex items-center justify-center text-white text-sm font-bold mt-1">
+                <UserAvatar src={person.avatarUrl} name={person.displayName} fill ring={false} />
               </span>
 
               <span className="flex items-center gap-1 mt-2 max-w-full">

@@ -6,8 +6,8 @@ import { Plus } from 'lucide-react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faFire,
-  faCompass,
-  faUsers,
+  faBriefcase,
+  faStore,
   faUserGroup,
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -15,11 +15,11 @@ import {
 // reached from the drawer in the top bar — a tab bar can't hold twelve entries.
 const leftItems = [
   { href: '/app/for-you', label: 'For You', icon: faFire },
-  { href: '/app/explore', label: 'Explore', icon: faCompass },
+  { href: '/app/signals', label: 'Signals', icon: faBriefcase },
 ];
 
 const rightItems = [
-  { href: '/app/creators', label: 'Creators', icon: faUsers },
+  { href: '/app/market', label: 'Shopping Mall', icon: faStore },
   { href: '/app/friends', label: 'Friends', icon: faUserGroup },
 ];
 
@@ -37,7 +37,7 @@ const Tab = ({
   <Link
     href={href}
     aria-current={isActive ? 'page' : undefined}
-    className="flex-1 flex flex-col items-center justify-center py-2.5 gap-1 transition"
+    className="min-w-0 flex-1 flex flex-col items-center justify-center py-2.5 gap-1 transition"
   >
     <span
       className={`flex items-center justify-center w-10 h-8 rounded-xl transition-all duration-200 ${
@@ -47,7 +47,7 @@ const Tab = ({
       <FontAwesomeIcon icon={icon} className="h-4 w-4" />
     </span>
     <span
-      className={`text-[11px] font-medium ${isActive ? 'text-primary' : 'text-muted-foreground'}`}
+      className={`text-center text-[10px] sm:text-[11px] font-medium leading-tight ${isActive ? 'text-primary' : 'text-muted-foreground'}`}
     >
       {label}
     </span>

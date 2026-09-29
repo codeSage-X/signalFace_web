@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertCircle, Check, RotateCw, X } from 'lucide-react';
+import { AlertCircle, Check, ShieldAlert, RotateCw, X } from 'lucide-react';
 import { usePostUpload } from '@/lib/stores';
 
 // Long enough to register as "done", short enough not to linger.
@@ -31,7 +31,7 @@ const TRICKLE_MS = 500;
  * reporting while the user browses.
  */
 export function PostUploadBar() {
-  const { status, percent, error, retry, clear } = usePostUpload();
+  const { status, percent, error, errorCode, retry, clear } = usePostUpload();
   const [trickle, setTrickle] = useState(0);
 
   // Creep forward while the server works, so the bar keeps moving without
@@ -70,6 +70,7 @@ export function PostUploadBar() {
         : Math.round(percent * UPLOAD_SHARE);
 
   return (
+    <>
     <div
       className="fixed top-0 left-0 right-0 z-[100] pointer-events-none"
       role="progressbar"
@@ -107,7 +108,7 @@ export function PostUploadBar() {
             <>
               <AlertCircle size={13} />
               <span className="max-w-[60vw] truncate">{error ?? 'Post failed'}</span>
-              {retry && (
+              {retry && errorCode !== 'MEDIA_REJECTED' && (
                 <button
                   onClick={retry}
                   className="ml-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/25 hover:bg-red-500/40 transition"
@@ -135,5 +136,36 @@ export function PostUploadBar() {
         </div>
       </div>
     </div>
+    {errorCode === 'MEDIA_REJECTED' && (
+      <div className="fixed inset-0 z-[210] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="moderation-rejected-title"
+          className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-2xl"
+        >
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/15 text-destructive">
+            <ShieldAlert size={22} />
+          </div>
+          <h2 id="moderation-rejected-title" className="mt-4 text-xl font-bold text-foreground">
+            Content removed
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            {error ?? 'This media was flagged as violating our Community Guidelines and has been removed.'}
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            The post was not published. Please choose different media before trying again.
+          </p>
+          <button
+            type="button"
+            onClick={clear}
+            className="mt-6 w-full rounded-lg brand-gradient px-4 py-3 text-sm font-semibold text-white"
+          >
+            I understand
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
