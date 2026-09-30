@@ -35,7 +35,7 @@ export const navItems = [
   { href: '/app/creators', label: 'Creators', icon: faUsers },
   { href: '/app/friends', label: 'Friends', icon: faUserGroup },
   { href: '/app/messages', label: 'Messages', icon: faComments },
-  { href: '/app/market', label: 'Shopping Mall', icon: faStore },
+  { href: '/app/market', label: 'Marketplace', icon: faStore },
   { href: '/app/signals', label: 'Signals', icon: faBriefcase },
   { href: '/app/watchlist', label: 'Watchlist', icon: faHeart },
   { href: '/app/rewards', label: 'Rewards', icon: faGift },

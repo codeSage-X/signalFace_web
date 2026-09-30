@@ -106,9 +106,83 @@ service cloud.firestore {
         return signedIn() && resource.data.ownerId == request.auth.uid;
       }
 
+      function isGroupAdmin() {
+        return signedIn() && request.auth.uid in resource.data.get('adminIds', []);
+      }
+
+      function updatesGroupImages() {
+        let avatarUrl = request.resource.data.get('avatarUrl', null);
+        let coverUrl = request.resource.data.get('coverUrl', null);
+        return ((resource.data.privacy == 'private' && (isOwner() || isGroupAdmin()))
+                || (resource.data.privacy == 'open' && isMember()))
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['avatarUrl', 'coverUrl'])
+          && (avatarUrl == null || (avatarUrl is string && avatarUrl.size() <= 2048))
+          && (coverUrl == null || (coverUrl is string && coverUrl.size() <= 2048));
+      }
+
       function onlyMembershipChanged() {
         return request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['memberIds', 'pendingMemberIds', 'invitedMemberIds']);
+      }
+
+      function updatesAdmins() {
+        let nextAdmins = request.resource.data.get('adminIds', []);
+        let nextPending = request.resource.data.get('pendingAdminIds', []);
+        return isOwner()
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['adminIds', 'pendingAdminIds', 'rejectedAdminInviteMemberIds'])
+          && resource.data.get('adminIds', []).hasAll(nextAdmins)
+          && nextAdmins.concat(nextPending).size() <= 5
+          && nextAdmins.hasOnly(request.resource.data.memberIds)
+          && nextPending.hasOnly(request.resource.data.memberIds)
+          && !nextPending.hasAny(nextAdmins)
+          && !(resource.data.ownerId in nextAdmins)
+          && !(resource.data.ownerId in nextPending)
+          && request.resource.data.get('acceptedAdminInviteMemberIds', [])
+               == resource.data.get('acceptedAdminInviteMemberIds', [])
+          && resource.data.get('rejectedAdminInviteMemberIds', [])
+               .hasAll(request.resource.data.get('rejectedAdminInviteMemberIds', []));
+      }
+
+      function removesSignedInUser(previous, next) {
+        return previous.hasAll(next)
+          && previous.hasOnly(next.concat([request.auth.uid]))
+          && !(request.auth.uid in next);
+      }
+
+      function addsSignedInUser(previous, next) {
+        return next.hasAll(previous)
+          && next.hasOnly(previous.concat([request.auth.uid]))
+          && request.auth.uid in next;
+      }
+
+      function respondsToAdminInvitation() {
+        let previousAdmins = resource.data.get('adminIds', []);
+        let nextAdmins = request.resource.data.get('adminIds', []);
+        let previousPending = resource.data.get('pendingAdminIds', []);
+        let nextPending = request.resource.data.get('pendingAdminIds', []);
+        let previousAccepted = resource.data.get('acceptedAdminInviteMemberIds', []);
+        let nextAccepted = request.resource.data.get('acceptedAdminInviteMemberIds', []);
+        let previousRejected = resource.data.get('rejectedAdminInviteMemberIds', []);
+        let nextRejected = request.resource.data.get('rejectedAdminInviteMemberIds', []);
+        return request.auth.uid in previousPending
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'adminIds',
+            'pendingAdminIds',
+            'acceptedAdminInviteMemberIds',
+            'rejectedAdminInviteMemberIds'
+          ])
+          && removesSignedInUser(previousPending, nextPending)
+          && (
+            (addsSignedInUser(previousAdmins, nextAdmins)
+              && addsSignedInUser(previousAccepted, nextAccepted)
+              && removesSignedInUser(previousRejected, nextRejected))
+            ||
+            (nextAdmins == previousAdmins
+              && nextAccepted == previousAccepted
+              && addsSignedInUser(previousRejected, nextRejected))
+          );
       }
 
       function addsSelfAsMember() {
@@ -137,12 +211,19 @@ service cloud.firestore {
       }
 
       function acceptsOwnInvitation() {
-        return request.auth.uid in resource.data.get('invitedMemberIds', [])
+        let previousAccepted = resource.data.get('acceptedInviteMemberIds', []);
+        let nextAccepted = request.resource.data.get('acceptedInviteMemberIds', []);
+        return request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['memberIds', 'invitedMemberIds', 'acceptedInviteMemberIds'])
+          && request.auth.uid in resource.data.get('invitedMemberIds', [])
           && request.resource.data.memberIds.hasAll(resource.data.memberIds)
           && request.resource.data.memberIds.hasOnly(resource.data.memberIds.concat([request.auth.uid]))
           && request.resource.data.pendingMemberIds == resource.data.pendingMemberIds
           && resource.data.get('invitedMemberIds', []).hasAll(request.resource.data.get('invitedMemberIds', []))
-          && resource.data.get('invitedMemberIds', []).hasOnly(request.resource.data.get('invitedMemberIds', []).concat([request.auth.uid]));
+          && resource.data.get('invitedMemberIds', []).hasOnly(request.resource.data.get('invitedMemberIds', []).concat([request.auth.uid]))
+          && nextAccepted.hasAll(previousAccepted)
+          && nextAccepted.hasOnly(previousAccepted.concat([request.auth.uid]))
+          && request.auth.uid in nextAccepted;
       }
 
       // Groups are discoverable so people can request membership, while their
@@ -154,6 +235,11 @@ service cloud.firestore {
                     && request.resource.data.memberIds.size() == 1
                     && request.resource.data.pendingMemberIds.size() == 0
                     && request.resource.data.invitedMemberIds.size() == 0
+                    && request.resource.data.get('acceptedInviteMemberIds', []).size() == 0
+                    && request.resource.data.get('adminIds', []).size() == 0
+                    && request.resource.data.get('pendingAdminIds', []).size() == 0
+                    && request.resource.data.get('acceptedAdminInviteMemberIds', []).size() == 0
+                    && request.resource.data.get('rejectedAdminInviteMemberIds', []).size() == 0
                     && ((request.resource.data.systemCreated == false
                          && request.resource.data.ownerId == request.auth.uid)
                         || (request.resource.data.systemCreated == true
@@ -171,16 +257,25 @@ service cloud.firestore {
                                 || groupId == 'food-cooking')));
 
       // Anyone can self-join an open group or submit one private-group request.
-      // Only an owner can resolve private membership, and all other group fields
-      // remain immutable from the client.
+      // Public-group members may maintain its photos; private-group photos stay
+      // under the creator's control. Every other group field remains immutable.
       allow update: if signedIn()
-                    && onlyMembershipChanged()
                     && request.resource.data.ownerId == resource.data.ownerId
                     && request.resource.data.systemCreated == resource.data.systemCreated
-                    && ((resource.data.privacy == 'open' && addsSelfAsMember())
-                        || (resource.data.privacy == 'private'
-                            && (addsSelfAsRequest() || isOwner()))
-                        || addsInvitation()
+                    && (resource.data.ownerId == null
+                        || resource.data.ownerId in request.resource.data.memberIds)
+                    && request.resource.data.get('adminIds', [])
+                         .hasOnly(request.resource.data.memberIds)
+                    && request.resource.data.get('pendingAdminIds', [])
+                         .hasOnly(request.resource.data.memberIds)
+                    && (updatesAdmins()
+                        || respondsToAdminInvitation()
+                        || updatesGroupImages()
+                        || (onlyMembershipChanged()
+                            && ((resource.data.privacy == 'open' && addsSelfAsMember())
+                                || (resource.data.privacy == 'private'
+                                    && (addsSelfAsRequest() || isOwner() || isGroupAdmin()))
+                                || addsInvitation()))
                         || acceptsOwnInvitation());
 
       allow delete: if false;

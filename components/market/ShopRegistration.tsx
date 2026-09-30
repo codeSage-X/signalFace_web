@@ -26,9 +26,9 @@ export function ShopRegistration({ onClose, onCreated }: {
     finally { setBusy(false); }
   }
   return (
-    <MallDialog title="Create a Shopping Mall seller account" busy={busy} onClose={onClose}>
+    <MallDialog title="Create a Marketplace seller account" busy={busy} onClose={onClose}>
       <header className="flex items-start justify-between gap-3 border-b border-border p-5">
-        <div><h1 className="text-xl font-bold">Open your shop</h1><p className="mt-1 text-sm text-muted-foreground">Register a seller account in Shopping Mall to start selling.</p></div>
+        <div><h1 className="text-xl font-bold">Open your shop</h1><p className="mt-1 text-sm text-muted-foreground">Register a seller account in Marketplace to start selling.</p></div>
         <button type="button" disabled={busy} onClick={onClose} aria-label="Close registration" className="rounded-full p-2 hover:bg-muted"><X size={20} /></button>
       </header>
       <form onSubmit={submit} className="p-5">

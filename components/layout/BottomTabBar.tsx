@@ -19,7 +19,7 @@ const leftItems = [
 ];
 
 const rightItems = [
-  { href: '/app/market', label: 'Shopping Mall', icon: faStore },
+  { href: '/app/market', label: 'Marketplace', icon: faStore },
   { href: '/app/friends', label: 'Friends', icon: faUserGroup },
 ];
 

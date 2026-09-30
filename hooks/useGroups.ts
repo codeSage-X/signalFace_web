@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/stores';
 import type { ChatMediaUpload } from '@/lib/api';
 
 export type GroupPrivacy = 'open' | 'private';
+export const MAX_GROUP_ADMINS = 5;
 
 export interface InterestGroup {
   id: string;
@@ -30,9 +31,16 @@ export interface InterestGroup {
   privacy: GroupPrivacy;
   systemCreated: boolean;
   ownerId: string | null;
+  adminIds: string[];
+  pendingAdminIds: string[];
+  acceptedAdminInviteMemberIds: string[];
+  rejectedAdminInviteMemberIds: string[];
+  avatarUrl: string | null;
+  coverUrl: string | null;
   memberIds: string[];
   pendingMemberIds: string[];
   invitedMemberIds: string[];
+  acceptedInviteMemberIds: string[];
   createdAt: Date | null;
 }
 
@@ -136,22 +144,32 @@ function toGroup(id: string, data: Record<string, unknown>): InterestGroup {
     privacy: data.privacy === 'private' ? 'private' : 'open',
     systemCreated: Boolean(data.systemCreated),
     ownerId: typeof data.ownerId === 'string' ? data.ownerId : null,
+    adminIds: Array.isArray(data.adminIds) ? data.adminIds as string[] : [],
+    pendingAdminIds: Array.isArray(data.pendingAdminIds) ? data.pendingAdminIds as string[] : [],
+    acceptedAdminInviteMemberIds: Array.isArray(data.acceptedAdminInviteMemberIds) ? data.acceptedAdminInviteMemberIds as string[] : [],
+    rejectedAdminInviteMemberIds: Array.isArray(data.rejectedAdminInviteMemberIds) ? data.rejectedAdminInviteMemberIds as string[] : [],
+    avatarUrl: typeof data.avatarUrl === 'string' ? data.avatarUrl : null,
+    coverUrl: typeof data.coverUrl === 'string' ? data.coverUrl : null,
     memberIds: Array.isArray(data.memberIds) ? data.memberIds as string[] : [],
     pendingMemberIds: Array.isArray(data.pendingMemberIds) ? data.pendingMemberIds as string[] : [],
     invitedMemberIds: Array.isArray(data.invitedMemberIds) ? data.invitedMemberIds as string[] : [],
+    acceptedInviteMemberIds: Array.isArray(data.acceptedInviteMemberIds) ? data.acceptedInviteMemberIds as string[] : [],
     createdAt: toDate(data.createdAt),
   };
 }
 
 export function useGroups() {
+  const user = useAuth((state) => state.user);
   const [groups, setGroups] = useState<InterestGroup[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isChatConfigured) {
+    if (!user || !isChatConfigured) {
+      setGroups([]);
       setLoading(false);
       return;
     }
+    setLoading(true);
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
     ensureChatAuth()
@@ -170,7 +188,7 @@ export function useGroups() {
       cancelled = true;
       unsubscribe?.();
     };
-  }, []);
+  }, [user?.id]);
 
   return { groups, loading };
 }
@@ -210,7 +228,12 @@ export function useGroup(groupId: string) {
 export function useGroupActions() {
   const user = useAuth((state) => state.user);
 
-  const createGroup = useCallback(async (name: string, description: string, privacy: GroupPrivacy) => {
+  const createGroup = useCallback(async (
+    name: string,
+    description: string,
+    privacy: GroupPrivacy,
+    images: { avatarUrl?: string | null; coverUrl?: string | null } = {},
+  ) => {
     if (!user) throw new Error('Sign in to create a group.');
     await ensureChatAuth();
     const group = await addDoc(collection(chatDb(), 'groups'), {
@@ -219,12 +242,39 @@ export function useGroupActions() {
       privacy,
       systemCreated: false,
       ownerId: user.id,
+      adminIds: [],
+      pendingAdminIds: [],
+      acceptedAdminInviteMemberIds: [],
+      rejectedAdminInviteMemberIds: [],
+      avatarUrl: images.avatarUrl ?? null,
+      coverUrl: images.coverUrl ?? null,
       memberIds: [user.id],
       pendingMemberIds: [],
       invitedMemberIds: [],
+      acceptedInviteMemberIds: [],
       createdAt: serverTimestamp(),
     });
     return group.id;
+  }, [user]);
+
+  const updateGroupImages = useCallback(async (
+    group: InterestGroup,
+    images: { avatarUrl?: string | null; coverUrl?: string | null },
+  ) => {
+    const canEdit = user && (
+      group.privacy === 'private'
+        ? group.ownerId === user.id || group.adminIds.includes(user.id)
+        : group.memberIds.includes(user.id)
+    );
+    if (!canEdit) {
+      throw new Error(
+        group.privacy === 'private'
+          ? 'Only a group admin can change photos for a private group.'
+          : 'Join this group before changing its photos.',
+      );
+    }
+    await ensureChatAuth();
+    await updateDoc(doc(chatDb(), 'groups', group.id), images);
   }, [user]);
 
   const joinGroup = useCallback(async (group: InterestGroup) => {
@@ -238,11 +288,53 @@ export function useGroupActions() {
   }, [user]);
 
   const approveRequest = useCallback(async (group: InterestGroup, memberId: string) => {
-    if (!user || group.ownerId !== user.id) throw new Error('Only the group owner can approve members.');
+    if (!user || (group.ownerId !== user.id && !group.adminIds.includes(user.id))) {
+      throw new Error('Only a group admin can approve members.');
+    }
     await ensureChatAuth();
     await updateDoc(doc(chatDb(), 'groups', group.id), {
       memberIds: arrayUnion(memberId),
       pendingMemberIds: arrayRemove(memberId),
+    });
+  }, [user]);
+
+  const setGroupAdmin = useCallback(async (
+    group: InterestGroup,
+    memberId: string,
+    makeAdmin: boolean,
+  ) => {
+    if (!user || group.ownerId !== user.id) {
+      throw new Error('Only the group creator can appoint sub-admins.');
+    }
+    if (!group.memberIds.includes(memberId) || memberId === group.ownerId) return;
+    const assignedCount = group.adminIds.length + group.pendingAdminIds.length;
+    if (makeAdmin && !group.adminIds.includes(memberId) && !group.pendingAdminIds.includes(memberId) && assignedCount >= MAX_GROUP_ADMINS) {
+      throw new Error(`A group can have up to ${MAX_GROUP_ADMINS} sub-admins.`);
+    }
+    await ensureChatAuth();
+    await updateDoc(doc(chatDb(), 'groups', group.id), {
+      adminIds: arrayRemove(memberId),
+      pendingAdminIds: makeAdmin ? arrayUnion(memberId) : arrayRemove(memberId),
+      ...(makeAdmin ? { rejectedAdminInviteMemberIds: arrayRemove(memberId) } : {}),
+    });
+  }, [user]);
+
+  const respondToGroupAdminInvite = useCallback(async (
+    group: InterestGroup,
+    response: 'accept' | 'reject',
+  ) => {
+    if (!user || !group.pendingAdminIds.includes(user.id)) {
+      throw new Error('This admin invitation is no longer available.');
+    }
+    await ensureChatAuth();
+    await updateDoc(doc(chatDb(), 'groups', group.id), response === 'accept' ? {
+      pendingAdminIds: arrayRemove(user.id),
+      adminIds: arrayUnion(user.id),
+      acceptedAdminInviteMemberIds: arrayUnion(user.id),
+      rejectedAdminInviteMemberIds: arrayRemove(user.id),
+    } : {
+      pendingAdminIds: arrayRemove(user.id),
+      rejectedAdminInviteMemberIds: arrayUnion(user.id),
     });
   }, [user]);
 
@@ -261,6 +353,7 @@ export function useGroupActions() {
     await updateDoc(doc(chatDb(), 'groups', group.id), {
       memberIds: arrayUnion(user.id),
       invitedMemberIds: arrayRemove(user.id),
+      acceptedInviteMemberIds: arrayUnion(user.id),
     });
   }, [user]);
 
@@ -276,15 +369,22 @@ export function useGroupActions() {
         privacy: 'open',
         systemCreated: true,
         ownerId: null,
+        adminIds: [],
+        pendingAdminIds: [],
+        acceptedAdminInviteMemberIds: [],
+        rejectedAdminInviteMemberIds: [],
+        avatarUrl: null,
+        coverUrl: null,
         memberIds: [user.id],
         pendingMemberIds: [],
         invitedMemberIds: [],
+        acceptedInviteMemberIds: [],
         createdAt: serverTimestamp(),
       });
     }
   }, [user]);
 
-  return { createGroup, joinGroup, approveRequest, inviteMember, acceptInvite, createSystemGroup, user };
+  return { createGroup, updateGroupImages, joinGroup, approveRequest, setGroupAdmin, respondToGroupAdminInvite, inviteMember, acceptInvite, createSystemGroup, user };
 }
 
 export function useGroupPosts(groupId: string, isMember: boolean) {

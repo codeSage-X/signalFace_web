@@ -48,7 +48,10 @@ export const TopBar = ({
   // In creator mode the chrome wears the realm's identity, so it's always
   // obvious which profile an action will be taken as.
   const asRealm = mode === 'creator' && Boolean(realm);
-  const avatarUrl = asRealm ? realm?.iconUrl : user?.avatarUrl;
+  // A Realm can be created before its own display picture is uploaded. Keep
+  // the owner's profile picture visible in the header until the Realm gets one
+  // instead of replacing a valid photo with the generic placeholder.
+  const avatarUrl = asRealm ? (realm?.iconUrl ?? user?.avatarUrl) : user?.avatarUrl;
   const unreadMessagesLabel = unreadMessages > 99 ? '99+' : String(unreadMessages);
   const unreadActivityLabel = unreadActivity > 99 ? '99+' : String(unreadActivity);
 

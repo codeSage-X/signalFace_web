@@ -249,6 +249,15 @@ export const chatMediaApi = {
   },
 };
 
+export const groupMediaApi = {
+  upload: (file: File, kind: 'avatar' | 'cover', options?: UploadOptions) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('kind', kind);
+    return uploadForm<{ url: string }>('/chat-media/group-image', formData, options);
+  },
+};
+
 export interface UserSignal {
   id: string;
   score: string;
@@ -904,7 +913,8 @@ export type ActivityKind =
   | 'follow'
   | 'like'
   | 'comment'
-  | 'repost';
+  | 'repost'
+  | 'admin';
 
 export interface ActivityItem {
   id: string;
@@ -921,6 +931,11 @@ export interface ActivityItem {
     avatarUrl: string | null;
   } | null;
   postId: string | null;
+  adminInvitation?: {
+    id: string;
+    scope: 'realm';
+    status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  };
 }
 
 export const activityApi = {
@@ -1055,6 +1070,8 @@ export interface FeedPost {
   mediaUrls: string[];
   /** Every item, each with its own kind, in post order. */
   media: PostMediaItem[];
+  /** Set by the author; clients expose download actions only when this is true. */
+  allowDownload: boolean;
   /**
    * How the author framed the post. Images are already cropped to it, so this
    * matters most for video, which the browser could not re-encode.
@@ -1135,6 +1152,7 @@ export const postsApi = {
       aspectRatio?: AspectRatio;
       cover?: File;
       category?: RealmCategory | null;
+      allowDownload?: boolean;
     },
   ) => {
     const formData = new FormData();
@@ -1148,13 +1166,14 @@ export const postsApi = {
       formData.append('aspectRatio', options.aspectRatio);
     }
     if (options?.cover) formData.append('cover', options.cover);
+    formData.append('allowDownload', String(options?.allowDownload ?? false));
     return uploadForm<FeedPost>('/posts', formData, options);
   },
   feed: (cursor?: string | null, limit?: number) =>
     request<Page<FeedPost>>(`/posts/feed${pageQuery(cursor, limit)}`),
   byUsername: (username: string, cursor?: string | null, limit?: number) =>
     request<Page<FeedPost>>(`/posts/user/${encodeURIComponent(username)}${pageQuery(cursor, limit)}`),
-  getOne: (id: string) => request<FeedPost>(`/posts/${id}`),
+  getOne: (id: string) => request<FeedPost>(`/posts/${encodeURIComponent(id)}`),
   moderationStatus: (id: string) =>
     request<{ status: 'VISIBLE' | 'CENSORED' | 'REMOVED'; message: string | null }>(
       `/posts/${encodeURIComponent(id)}/moderation-status`,
@@ -1285,6 +1304,7 @@ export interface Realm {
   status: RealmStatus;
   followersCount: number;
   postsCount: number;
+  adminCount: number;
   createdAt: string;
   owner: {
     id: string;
@@ -1293,9 +1313,21 @@ export interface Realm {
     avatarUrl: string | null;
   };
   isMine: boolean;
+  canManage: boolean;
+  isOwner: boolean;
   isFollowedByMe: boolean;
   /** Only returned by `getBySlug`. */
   signal?: UserSignal | null;
+}
+
+export interface RealmAdmin {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  creatorStatus: string;
+  assignedAt: string;
+  status: 'PENDING' | 'ACCEPTED';
 }
 
 export interface CreateRealmBody {
@@ -1396,6 +1428,27 @@ export const realmsApi = {
     formData.append('cover', file);
     return requestForm<Realm>('/realms/me/cover', formData, { method: 'POST' });
   },
+  admins: () => request<{ limit: number; items: RealmAdmin[] }>('/realms/me/admins'),
+  addAdmin: (userId: string) =>
+    request<{ limit: number; items: RealmAdmin[] }>(
+      `/realms/me/admins/${encodeURIComponent(userId)}`,
+      { method: 'POST' },
+    ),
+  removeAdmin: (userId: string) =>
+    request<{ limit: number; items: RealmAdmin[] }>(
+      `/realms/me/admins/${encodeURIComponent(userId)}`,
+      { method: 'DELETE' },
+    ),
+  respondToAdminInvitation: (invitationId: string, response: 'accept' | 'reject') =>
+    request<{
+      id: string;
+      status: 'ACCEPTED' | 'REJECTED';
+      realmId: string;
+      realmName: string;
+    }>(`/realms/admin-invitations/${encodeURIComponent(invitationId)}/respond`, {
+      method: 'POST',
+      body: JSON.stringify({ response }),
+    }),
   dashboard: (range: DashboardRange = '30D') =>
     request<CreatorDashboard>(`/realms/me/dashboard?range=${range}`),
   list: (params: {

@@ -6,7 +6,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import {
   Heart, MessageCircle, Share2, Eye, Bookmark, Repeat2,
   Volume2, VolumeX, Play, Plus, Check, Loader2, X, Send,
-  ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
+  ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Download,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -24,6 +24,9 @@ import { useAuth, useToast, useVideoSound } from '@/lib/stores';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { ModeratedMedia } from '@/components/social/ModeratedMedia';
+import { PostShareModal } from '@/components/social/PostShareModal';
+import { shareablePost } from '@/lib/post-sharing';
+import { downloadPostMedia } from '@/lib/media-download';
 
 const PAGE_SIZE = 6;
 // Start fetching the next page once the viewer is this many posts from the end.
@@ -68,15 +71,18 @@ function postDateTime(iso: string) {
 
 // ─── Action button ────────────────────────────────────────────────────────────
 function ActionBtn({
-  icon, count, onClick,
+  icon, count, onClick, label,
 }: {
   icon: React.ReactNode;
   count?: string;
   onClick?: () => void;
+  label?: string;
 }) {
   return (
     <button
       onClick={onClick}
+      aria-label={label}
+      title={label}
       className="flex flex-col items-center gap-1 group text-white lg:text-foreground active:scale-90 transition-transform"
     >
       <div className="w-11 h-11 rounded-full glass-chip flex items-center justify-center group-hover:brightness-125 transition">
@@ -98,6 +104,7 @@ function ActionColumn({
   onBookmark,
   onRepost,
   onShare,
+  onDownload,
   onToggleFollow,
 }: {
   post: FeedPost;
@@ -107,6 +114,7 @@ function ActionColumn({
   onBookmark: () => void;
   onRepost: () => void;
   onShare: () => void;
+  onDownload?: () => void;
   onToggleFollow: () => void;
 }) {
   // A realm post is credited to the page, so the avatar column wears the realm's
@@ -196,7 +204,11 @@ function ActionColumn({
       <ActionBtn
         icon={<Share2 size={22} />}
         onClick={onShare}
+        label="Share post"
       />
+      {onDownload && (
+        <ActionBtn icon={<Download size={22} />} onClick={onDownload} label="Download media" />
+      )}
 
       <div className="flex flex-col items-center gap-1 text-white/70 lg:text-muted-foreground">
         <Eye size={18} />
@@ -306,7 +318,15 @@ function VideoSlide({
  * arrows just scroll it. A JS drag handler would have to re-implement momentum,
  * rubber-banding and pointer capture, and would still feel worse.
  */
-function MediaCarousel({ post, isActive }: { post: FeedPost; isActive: boolean }) {
+function MediaCarousel({
+  post,
+  isActive,
+  onIndexChange,
+}: {
+  post: FeedPost;
+  isActive: boolean;
+  onIndexChange?: (index: number) => void;
+}) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
 
@@ -327,7 +347,10 @@ function MediaCarousel({ post, isActive }: { post: FeedPost; isActive: boolean }
     const el = trackRef.current;
     if (!el || !el.clientWidth) return;
     const next = Math.round(el.scrollLeft / el.clientWidth);
-    if (next >= 0 && next < count) setIdx(next);
+    if (next >= 0 && next < count && next !== idx) {
+      setIdx(next);
+      onIndexChange?.(next);
+    }
   };
 
   const goTo = (i: number) => {
@@ -815,7 +838,7 @@ function CommentsPanel({
 // ─── Single feed item ─────────────────────────────────────────────────────────
 function FeedItem({
   post, index, isActive, followPending, onVisible, onLike, onOpenComments,
-  onBookmark, onRepost, onShare, onToggleFollow,
+  onBookmark, onRepost, onShare, onDownload, onToggleFollow,
 }: {
   post: FeedPost;
   index: number;
@@ -827,9 +850,18 @@ function FeedItem({
   onBookmark: () => void;
   onRepost: () => void;
   onShare: () => void;
+  onDownload?: (item: PostMediaItem) => void;
   onToggleFollow: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+
+  const mediaItems: PostMediaItem[] = post.media?.length
+    ? post.media
+    : post.mediaUrls.map((url) => ({
+        url,
+        kind: post.kind === 'video' ? 'video' : 'image',
+      }));
 
   useEffect(() => {
     const el = ref.current;
@@ -858,7 +890,7 @@ function FeedItem({
           {post.kind === 'text' ? (
             <TextContent post={post} index={index} />
           ) : (
-            <MediaCarousel post={post} isActive={isActive} />
+            <MediaCarousel post={post} isActive={isActive} onIndexChange={setActiveMediaIndex} />
           )}
           {(post.moderation === 'CENSORED' || post.moderation === 'REMOVED') && (
             <ModeratedMedia />
@@ -877,6 +909,9 @@ function FeedItem({
             onBookmark={onBookmark}
             onRepost={onRepost}
             onShare={onShare}
+            onDownload={onDownload && mediaItems[activeMediaIndex]
+              ? () => onDownload(mediaItems[activeMediaIndex])
+              : undefined}
             onToggleFollow={onToggleFollow}
           />
         </div>
@@ -956,6 +991,8 @@ export interface ImmersiveFeedProps {
   emptyBody?: string;
   /** Bubbles like/bookmark/repost changes so a parent grid can stay in step. */
   onPostChanged?: (post: FeedPost) => void;
+  /** Lets a specific feed suppress downloads even when an author allowed them. */
+  showDownload?: boolean;
 }
 
 export function ImmersiveFeed({
@@ -968,6 +1005,7 @@ export function ImmersiveFeed({
   emptyTitle = 'Nothing here yet',
   emptyBody = 'Be the first to post something to the feed.',
   onPostChanged,
+  showDownload = true,
 }: ImmersiveFeedProps) {
   const [posts, setPosts] = useState<FeedPost[]>(initialPosts ?? []);
   const [loading, setLoading] = useState(!initialPosts?.length);
@@ -976,6 +1014,7 @@ export function ImmersiveFeed({
   const [loadingMore, setLoadingMore] = useState(false);
   const [current, setCurrent] = useState(initialIndex);
   const [commentsFor, setCommentsFor] = useState<FeedPost | null>(null);
+  const [shareFor, setShareFor] = useState<FeedPost | null>(null);
   // Username currently being followed/unfollowed, so the badge can spin.
   const [followPending, setFollowPending] = useState<string | null>(null);
 
@@ -1187,6 +1226,21 @@ export function ImmersiveFeed({
     });
   };
 
+  const handleDownload = async (post: FeedPost, item: PostMediaItem) => {
+    if (!post.allowDownload || post.moderation !== 'VISIBLE') return;
+
+    try {
+      await downloadPostMedia(item, `signalface-${post.id}`);
+      addToast({ message: `${item.kind === 'video' ? 'Video' : 'Image'} download started.`, type: 'success', duration: 2500 });
+    } catch (err) {
+      addToast({
+        message: err instanceof Error ? err.message : 'Could not download this media.',
+        type: 'error',
+        duration: 4000,
+      });
+    }
+  };
+
   /**
    * Realm posts follow the page, personal posts follow the person — the badge
    * on the card is bound to whichever identity the post is credited to.
@@ -1270,19 +1324,6 @@ export function ImmersiveFeed({
     });
   };
 
-  const handleShare = async (post: FeedPost) => {
-    const url = `${window.location.origin}/app/for-you?post=${post.id}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: `@${post.author.username} on Signal Face`, url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      addToast({ message: 'Link copied to clipboard.', type: 'success', duration: 3000 });
-    } catch {
-      // User dismissed the share sheet — nothing to report.
-    }
-  };
 
   const goTo = useCallback(
     (idx: number) => {
@@ -1359,14 +1400,19 @@ export function ImmersiveFeed({
             key={post.id}
             post={post}
             index={i}
-            isActive={i === current}
+            isActive={i === current && !shareFor}
             onVisible={() => handleVisible(i, post)}
             onLike={() => handleLike(post)}
             onOpenComments={() => setCommentsFor(post)}
             followPending={followPending === (post.realm?.slug ?? post.author.username)}
             onBookmark={() => handleBookmark(post)}
             onRepost={() => handleRepost(post)}
-            onShare={() => handleShare(post)}
+            onShare={() => setShareFor(post)}
+            onDownload={
+              showDownload && post.allowDownload && post.moderation === 'VISIBLE' && post.mediaUrls.length
+                ? (item) => void handleDownload(post, item)
+                : undefined
+            }
             onToggleFollow={() =>
               post.realm
                 ? handleToggleFollowRealm(post.realm)
@@ -1381,6 +1427,8 @@ export function ImmersiveFeed({
           </div>
         )}
       </div>
+
+      {shareFor && <PostShareModal key={shareFor.id} post={shareablePost(shareFor)} showDownload={showDownload} onClose={() => setShareFor(null)} />}
 
       {commentsFor && (
         <CommentsPanel

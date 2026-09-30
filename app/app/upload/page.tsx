@@ -53,6 +53,7 @@ function UploadForm() {
   // Framing chosen in the composer, sent alongside the post.
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('ORIGINAL');
   const [cover, setCover] = useState<File | null>(null);
+  const [allowDownload, setAllowDownload] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const { requireAuth } = useRequireAuth();
@@ -159,11 +160,13 @@ function UploadForm() {
   };
 
   const removeAttachment = (index: number) => {
-    setAttachments((prev) => {
-      // Revoke the blob URL we created, or the page leaks it until reload.
-      URL.revokeObjectURL(prev[index].previewUrl);
-      return prev.filter((_, i) => i !== index);
-    });
+    const attachment = attachments[index];
+    if (!attachment) return;
+    // Revoke the blob URL we created, or the page leaks it until reload.
+    URL.revokeObjectURL(attachment.previewUrl);
+    const next = attachments.filter((_, i) => i !== index);
+    setAttachments(next);
+    if (next.length === 0) setAllowDownload(false);
   };
 
   const handlePost = () => {
@@ -182,6 +185,7 @@ function UploadForm() {
         aspectRatio,
         cover: cover ?? undefined,
         category,
+        allowDownload,
       };
 
       const publish = () => {
@@ -193,6 +197,7 @@ function UploadForm() {
             aspectRatio: payload.aspectRatio,
             cover: payload.cover,
             category: payload.category,
+            allowDownload: payload.allowDownload,
           })
           .then(async (post) => {
             if (post.moderation !== 'CENSORED') {
@@ -240,6 +245,7 @@ function UploadForm() {
       setAttachments([]);
       setAspectRatio('ORIGINAL');
       setCover(null);
+      setAllowDownload(false);
       setCategory(realm?.category ?? null);
       router.push('/app/for-you');
     });
@@ -249,6 +255,7 @@ function UploadForm() {
     attachments.forEach((a) => URL.revokeObjectURL(a.previewUrl));
     setContent('');
     setAttachments([]);
+    setAllowDownload(false);
   };
 
   return (
@@ -411,6 +418,23 @@ function UploadForm() {
             {attachments.length}/{MAX_FILES} files
           </span>
         </div>
+
+        {attachments.length > 0 && (
+          <label className="mb-6 flex cursor-pointer items-start justify-between gap-4 rounded-xl border border-border bg-muted/40 p-4">
+            <span>
+              <span className="block text-sm font-semibold text-foreground">Allow media downloads</span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                People will see a download icon wherever this post appears.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={allowDownload}
+              onChange={(event) => setAllowDownload(event.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-primary"
+            />
+          </label>
+        )}
 
         {/* Topic. Without one a post can never be found under a category on
             Explore, which is why it defaults to the author's realm rather than

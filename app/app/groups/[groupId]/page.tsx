@@ -4,15 +4,16 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
-  ArrowLeft, Globe2, Heart, ImagePlus, Loader2, Lock, MessageCircle,
+  ArrowLeft, Camera, Globe2, Heart, ImagePlus, Loader2, Lock, MessageCircle,
   Share2,
   Send, UserPlus, UsersRound, Video, X,
 } from 'lucide-react';
-import { chatMediaApi, usersApi, type ChatMediaUpload, type FollowPerson } from '@/lib/api';
+import { chatMediaApi, groupMediaApi, usersApi, type ChatMediaUpload, type FollowPerson } from '@/lib/api';
 import { useToast } from '@/lib/stores';
 import { GroupMembersModal } from '@/components/social/GroupMembersModal';
 import { MessageMedia } from '@/components/chat/MessageMedia';
 import { UserAvatar } from '@/components/UserAvatar';
+import { PostShareModal } from '@/components/social/PostShareModal';
 import {
   SYSTEM_GROUPS,
   type GroupPost,
@@ -107,24 +108,7 @@ function GroupPostCard({ groupId, groupName, post, isMember }: { groupId: string
     }
   };
 
-  const handleShare = async () => {
-    const url = `${window.location.origin}/app/groups/${groupId}#group-post-${post.id}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `${post.authorName} in ${groupName}`,
-          ...(post.text ? { text: post.text } : {}),
-          url,
-        });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      addToast({ message: 'Link copied to clipboard.', type: 'success', duration: 3000 });
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      addToast({ message: 'Could not share this post.', type: 'error', duration: 4000 });
-    }
-  };
+  const [shareOpen, setShareOpen] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -148,7 +132,7 @@ function GroupPostCard({ groupId, groupName, post, isMember }: { groupId: string
         <button onClick={() => setCommentsOpen((open) => !open)} aria-expanded={commentsOpen} className="px-2 py-3 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground">
           <MessageCircle size={17} /> {comments.length}
         </button>
-        <button onClick={() => void handleShare()} className="px-2 py-3 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+        <button onClick={() => setShareOpen(true)} className="px-2 py-3 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground">
           <Share2 size={17} /> Share
         </button>
       </div>
@@ -163,6 +147,12 @@ function GroupPostCard({ groupId, groupName, post, isMember }: { groupId: string
           </form>
         </div>
       )}
+      {shareOpen && <PostShareModal post={{
+        id: post.id, title: `${post.authorName} in ${groupName}`, text: post.text ?? '',
+        path: `/app/groups/${encodeURIComponent(groupId)}#group-post-${encodeURIComponent(post.id)}`,
+        thumbnail: post.media?.moderationStatus === 'approved' && post.media.type === 'image' ? post.media.url : null,
+        videos: post.media?.moderationStatus === 'approved' && post.media.type === 'video' ? [post.media.url] : [],
+      }} onClose={() => setShareOpen(false)} />}
     </article>
   );
 }
@@ -211,18 +201,26 @@ function InviteModal({ group, onClose }: { group: InterestGroup; onClose: () => 
 export default function GroupPage() {
   const params = useParams<{ groupId: string }>();
   const { group, loading } = useGroup(params.groupId);
-  const { user, joinGroup, approveRequest, createSystemGroup } = useGroupActions();
+  const { user, joinGroup, approveRequest, createSystemGroup, updateGroupImages } = useGroupActions();
   const { addToast } = useToast();
   const systemSource = SYSTEM_GROUPS.find((entry) => entry.id === params.groupId);
   const displayGroup: InterestGroup | null = group ?? (systemSource ? {
-    ...systemSource, privacy: 'open', systemCreated: true, ownerId: null, memberIds: [], pendingMemberIds: [], invitedMemberIds: [], createdAt: null,
+    ...systemSource, privacy: 'open', systemCreated: true, ownerId: null, adminIds: [], pendingAdminIds: [], acceptedAdminInviteMemberIds: [], rejectedAdminInviteMemberIds: [], avatarUrl: null, coverUrl: null, memberIds: [], pendingMemberIds: [], invitedMemberIds: [], acceptedInviteMemberIds: [], createdAt: null,
   } : null);
   const isMember = Boolean(group && user && group.memberIds.includes(user.id));
   const isOwner = Boolean(group && user?.id === group.ownerId);
+  const isGroupAdmin = Boolean(group && user && group.adminIds.includes(user.id));
+  const canModerate = isOwner || isGroupAdmin;
+  const canEditImages = Boolean(group && user && (
+    group.privacy === 'private' ? canModerate : group.memberIds.includes(user.id)
+  ));
   const { posts, loading: postsLoading, createPost } = useGroupPosts(params.groupId, isMember);
   const [joining, setJoining] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [uploadingGroupImage, setUploadingGroupImage] = useState<'avatar' | 'cover' | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   if (loading) return <div className="p-8 text-sm text-muted-foreground">Opening group...</div>;
   if (!displayGroup) return <div className="p-8 text-sm text-muted-foreground">This group could not be found.</div>;
@@ -238,17 +236,54 @@ export default function GroupPage() {
     finally { setJoining(false); }
   };
 
+  const uploadGroupImage = async (kind: 'avatar' | 'cover', file?: File) => {
+    if (!file || !group || uploadingGroupImage) return;
+    if (file.size > 10 * 1024 * 1024) {
+      addToast({ message: 'Group photos must be 10 MB or smaller.', type: 'error', duration: 4000 });
+      return;
+    }
+    setUploadingGroupImage(kind);
+    try {
+      const { url } = await groupMediaApi.upload(file, kind);
+      await updateGroupImages(group, kind === 'avatar' ? { avatarUrl: url } : { coverUrl: url });
+      addToast({ message: kind === 'avatar' ? 'Group display picture updated.' : 'Group cover updated.', type: 'success', duration: 3000 });
+    } catch (error) {
+      addToast({ message: error instanceof Error ? error.message : 'Could not update the group photo.', type: 'error', duration: 5000 });
+    } finally {
+      setUploadingGroupImage(null);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+      if (coverInputRef.current) coverInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 pb-24">
       <Link href="/app/explore#groups" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft size={16} /> Explore groups</Link>
-      <header className="mt-4 border border-border bg-card p-5 sm:p-7">
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5">
-          <div><span className="w-12 h-12 brand-gradient text-white flex items-center justify-center"><UsersRound size={24} /></span><h1 className="mt-4 text-2xl sm:text-3xl font-bold text-foreground">{displayGroup.name}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{displayGroup.description}</p><button onClick={() => group && setMembersOpen(true)} disabled={!group} className="mt-3 inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"><UsersRound size={14} /> {displayGroup.memberIds.length} members · {displayGroup.privacy === 'private' ? <><Lock size={12} /> Private group</> : <><Globe2 size={12} /> Public group</>}</button></div>
-          {isMember ? <button onClick={() => setInviteOpen(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 glass-chip text-foreground text-sm font-semibold"><UserPlus size={17} /> Invite people</button> : requested ? <span className="px-4 py-2.5 glass-chip text-sm text-muted-foreground">Request pending</span> : <button onClick={() => void join()} disabled={joining} className="px-6 py-2.5 brand-gradient text-white text-sm font-semibold disabled:opacity-50">{joining ? 'Joining...' : displayGroup.privacy === 'open' ? 'Join group' : 'Request to join'}</button>}
+      <header className="mt-4 overflow-hidden border border-border bg-card">
+        <div className="relative h-40 sm:h-52 brand-gradient">
+          {displayGroup.coverUrl && <img src={displayGroup.coverUrl} alt={`${displayGroup.name} cover`} className="h-full w-full object-cover" />}
+          {canEditImages && (
+            <button type="button" onClick={() => coverInputRef.current?.click()} disabled={Boolean(uploadingGroupImage)} className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-lg bg-black/65 px-3 py-2 text-xs font-semibold text-white backdrop-blur-sm disabled:opacity-60">
+              {uploadingGroupImage === 'cover' ? <Loader2 size={15} className="animate-spin" /> : <Camera size={15} />}
+              {displayGroup.coverUrl ? 'Change cover' : 'Add cover'}
+            </button>
+          )}
+          <input ref={coverInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => void uploadGroupImage('cover', event.target.files?.[0])} />
+        </div>
+        <div className="relative px-5 pb-5 sm:px-7 sm:pb-7">
+          <div className="absolute -top-12 left-5 sm:left-7 h-24 w-24 overflow-hidden rounded-full border-4 border-card brand-gradient text-white flex items-center justify-center">
+            {displayGroup.avatarUrl ? <img src={displayGroup.avatarUrl} alt={`${displayGroup.name} display picture`} className="h-full w-full object-cover" /> : <UsersRound size={38} />}
+            {canEditImages && <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={Boolean(uploadingGroupImage)} aria-label="Change group display picture" className="absolute inset-0 flex items-center justify-center bg-black/55 text-white opacity-100 sm:opacity-0 sm:hover:opacity-100 focus-visible:opacity-100 transition disabled:opacity-60">{uploadingGroupImage === 'avatar' ? <Loader2 size={22} className="animate-spin" /> : <Camera size={22} />}</button>}
+            <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => void uploadGroupImage('avatar', event.target.files?.[0])} />
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 pt-16">
+            <div><h1 className="text-2xl sm:text-3xl font-bold text-foreground">{displayGroup.name}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{displayGroup.description}</p><button onClick={() => group && setMembersOpen(true)} disabled={!group} className="mt-3 inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"><UsersRound size={14} /> {displayGroup.memberIds.length} members · {displayGroup.privacy === 'private' ? <><Lock size={12} /> Private group</> : <><Globe2 size={12} /> Public group</>}</button></div>
+            {isMember ? <button onClick={() => setInviteOpen(true)} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 glass-chip text-foreground text-sm font-semibold"><UserPlus size={17} /> Invite people</button> : requested ? <span className="px-4 py-2.5 glass-chip text-sm text-muted-foreground">Request pending</span> : <button onClick={() => void join()} disabled={joining} className="px-6 py-2.5 brand-gradient text-white text-sm font-semibold disabled:opacity-50">{joining ? 'Joining...' : displayGroup.privacy === 'open' ? 'Join group' : 'Request to join'}</button>}
+          </div>
         </div>
       </header>
 
-      {isOwner && displayGroup.pendingMemberIds.length > 0 && <section className="mt-4 glass-card p-4"><h2 className="text-sm font-bold text-foreground">Membership requests</h2><div className="mt-3 flex flex-wrap gap-2">{displayGroup.pendingMemberIds.map((memberId) => <button key={memberId} onClick={() => approveRequest(displayGroup, memberId)} className="px-3 py-2 glass-chip text-xs text-foreground">Approve member</button>)}</div></section>}
+      {canModerate && displayGroup.pendingMemberIds.length > 0 && <section className="mt-4 glass-card p-4"><h2 className="text-sm font-bold text-foreground">Membership requests</h2><div className="mt-3 flex flex-wrap gap-2">{displayGroup.pendingMemberIds.map((memberId) => <button key={memberId} onClick={() => approveRequest(displayGroup, memberId)} className="px-3 py-2 glass-chip text-xs text-foreground">Approve member</button>)}</div></section>}
 
       {isMember ? (
         <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_15rem] lg:items-start">
@@ -257,7 +292,7 @@ export default function GroupPage() {
         </div>
       ) : <div className="mt-5 border border-border p-8 text-center"><p className="font-semibold text-foreground">Join to see group posts</p><p className="mt-1 text-sm text-muted-foreground">{displayGroup.privacy === 'private' ? 'Private group posts are visible to approved members.' : 'Become a member to publish and join the discussion.'}</p></div>}
 
-      {membersOpen && group && <GroupMembersModal memberIds={group.memberIds} onClose={() => setMembersOpen(false)} />}
+      {membersOpen && group && <GroupMembersModal group={group} onClose={() => setMembersOpen(false)} />}
       {inviteOpen && group && <InviteModal group={group} onClose={() => setInviteOpen(false)} />}
     </div>
   );

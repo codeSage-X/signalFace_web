@@ -1,13 +1,7 @@
 /**
- * The app palette, as literals.
- *
- * These are the same values as the dark-mode tokens in `globals.css` — that file
- * is the source of truth and this is its mirror, kept because SVG presentation
- * attributes (recharts `stroke`, `fill`) don't resolve `var()`. Anything that
- * *can* use a token or a Tailwind class should: `text-foreground`, `text-up`,
- * `bg-surface`, `.glass-card`. Reach for DASH only for chart internals.
- *
- * If you change a value here, change it in `globals.css` too.
+ * Dashboard colours reference the app theme in `globals.css`. CSS variables
+ * work in inline styles and SVG fill/stroke attributes, so text, chart labels,
+ * and control surfaces follow the selected theme together.
  *
  * Colour rules this palette is built to:
  *  - MAGENTA is the only series colour. Every price line — rising or falling —
@@ -19,28 +13,28 @@
  */
 export const DASH = {
   /** Page backdrop. */
-  bg: '#08060C',
+  bg: 'var(--background)',
   /** Default card surface. */
-  card: '#12101A',
+  card: 'var(--surface)',
   /** Slightly raised surface for tiles nested inside a card. */
-  tile: '#161220',
-  border: '#221E2C',
+  tile: 'var(--surface-raised)',
+  border: 'var(--border)',
   /** Range chip / segmented control. */
-  chip: '#1B1724',
-  chipBorder: '#2A2536',
+  chip: 'var(--muted)',
+  chipBorder: 'var(--border)',
 
-  ink: '#F7F5FA',
-  inkMuted: '#8C879A',
-  inkFaint: '#655F73',
+  ink: 'var(--foreground)',
+  inkMuted: 'var(--muted-foreground)',
+  inkFaint: 'var(--muted-foreground)',
 
   /** The one series colour. */
-  magenta: '#FF2D9B',
+  magenta: 'var(--magenta)',
   /** Left end of the hero sparkline gradient. */
-  violet: '#A855F7',
+  violet: 'var(--violet)',
 
   /** Status colours — signed values only. */
-  up: '#4ADE80',
-  down: '#F87171',
+  up: 'var(--up)',
+  down: 'var(--down)',
 
   /** Activity-row icon backgrounds. */
   iconIndigo: '#4F46E5',

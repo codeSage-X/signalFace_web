@@ -1,7 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { UserRound } from 'lucide-react';
+import { avatarSource } from '@/lib/avatar-source';
+
+function AvatarImage({ src, fallback }: { src: string | null; fallback: ReactNode }) {
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!failed || attempt >= 1) return;
+    const timer = setTimeout(() => { setAttempt(1); setFailed(false); }, 2_000);
+    return () => clearTimeout(timer);
+  }, [failed, attempt]);
+
+  if (!src || failed) return fallback;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img key={attempt} src={src} alt="" referrerPolicy="no-referrer"
+      className="w-full h-full object-cover" onError={() => setFailed(true)} />
+  );
+}
 
 /**
  * Shared profile picture with a monochrome fallback. Fill mode inherits the
@@ -22,12 +41,6 @@ export const UserAvatar = ({
   className?: string;
   fill?: boolean;
 }) => {
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [src]);
-
   const dim = {
     sm: 'w-9 h-9 text-xs',
     md: 'w-12 h-12 text-sm',
@@ -43,17 +56,9 @@ export const UserAvatar = ({
         flex items-center justify-center bg-black text-white dark:bg-white dark:text-black
         ${ring ? 'ring-2 ring-white/15' : ''}`}
     >
-      {src && !imageFailed ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt=""
-          className="w-full h-full object-cover"
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
+      <AvatarImage key={src ?? ''} src={avatarSource(src)} fallback={
         <UserRound size={iconSize} className={fill ? 'w-1/2 h-1/2' : undefined} strokeWidth={1.8} aria-label={name ? `${name} avatar` : 'User avatar'} />
-      )}
+      } />
     </span>
   );
 };

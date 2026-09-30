@@ -29,6 +29,7 @@ import { useProfileSwitch } from '@/hooks/useCreatorProfile';
 import { RealmPostGrid } from '@/components/creator/RealmPostGrid';
 import { PostDetailModal } from '@/components/social/PostDetailModal';
 import { FollowersFollowingModal } from '@/components/social/FollowersFollowingModal';
+import { RealmAdminsModal } from '@/components/creator/RealmAdminsModal';
 import {
   BadgeCheck,
   Camera,
@@ -45,6 +46,7 @@ import {
   Sparkles,
   TrendingUp,
   Users,
+  UserCog,
   X,
 } from 'lucide-react';
 import { externalHref, displayUrl } from '@/lib/utils';
@@ -72,6 +74,7 @@ export default function CreatorRealmPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [followModal, setFollowModal] = useState<{ tab: 'followers' | 'following' } | null>(null);
+  const [adminsOpen, setAdminsOpen] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -92,7 +95,7 @@ export default function CreatorRealmPage() {
   const slug = realm?.slug;
   // Management is gated on actually being switched into the creator profile —
   // the same rule Facebook applies to Page admin actions.
-  const canManage = mode === 'creator';
+  const canManage = mode === 'creator' && Boolean(realm?.canManage);
 
   useEffect(() => {
     if (!realm) return;
@@ -410,6 +413,15 @@ export default function CreatorRealmPage() {
                 <Rocket size={13} />
                 Boost
               </button>
+              {realm.isOwner && (
+                <button
+                  onClick={() => setAdminsOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium glass-chip text-foreground hover:brightness-125 transition"
+                >
+                  <UserCog size={14} />
+                  Admins {realm.adminCount > 0 ? `(${realm.adminCount})` : ''}
+                </button>
+              )}
             </>
           )}
 
@@ -576,6 +588,14 @@ export default function CreatorRealmPage() {
           index={openIndex}
           onIndexChange={setOpenIndex}
           onClose={() => setOpenIndex(null)}
+        />
+      )}
+
+      {adminsOpen && realm.isOwner && (
+        <RealmAdminsModal
+          realm={realm}
+          onClose={() => setAdminsOpen(false)}
+          onCountChange={(adminCount) => setRealm({ ...realm, adminCount })}
         />
       )}
 

@@ -2,10 +2,12 @@
 
 import { UserAvatar } from '@/components/UserAvatar';
 
+import { useEffect, useState } from 'react';
 import NextLink from 'next/link';
-import { BadgeCheck, LayoutDashboard, Repeat, User } from 'lucide-react';
+import { BadgeCheck, Check, LayoutDashboard, Loader2, Repeat, User } from 'lucide-react';
 import { useAuth, useProfileMode } from '@/lib/stores';
 import { useProfileSwitch } from '@/hooks/useCreatorProfile';
+import { realmsApi, type Realm } from '@/lib/api';
 
 /**
  * The creator block shared by every profile menu.
@@ -17,7 +19,15 @@ import { useProfileSwitch } from '@/hooks/useCreatorProfile';
 export const CreatorMenuSection = ({ onDismiss }: { onDismiss?: () => void }) => {
   const { user } = useAuth();
   const setBecomeCreatorOpen = useProfileMode((s) => s.setBecomeCreatorOpen);
+  const setRealm = useProfileMode((s) => s.setRealm);
   const { mode, realm, isCreator, switchTo } = useProfileSwitch();
+  const [managedRealms, setManagedRealms] = useState<Array<Realm & { isActive: boolean }>>([]);
+  const [switchingRealm, setSwitchingRealm] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isCreator) return;
+    realmsApi.listMine().then(setManagedRealms).catch(() => {});
+  }, [isCreator, realm?.id]);
 
   // Nothing to offer a signed-out visitor.
   if (!user) return null;
@@ -42,6 +52,19 @@ export const CreatorMenuSection = ({ onDismiss }: { onDismiss?: () => void }) =>
   }
 
   const inCreatorMode = mode === 'creator';
+
+  const selectRealm = async (realmId: string) => {
+    if (realmId === realm?.id) return;
+    setSwitchingRealm(realmId);
+    try {
+      const selected = await realmsApi.setActive(realmId);
+      setRealm(selected);
+      onDismiss?.();
+      switchTo('creator', '/app/realm');
+    } finally {
+      setSwitchingRealm(null);
+    }
+  };
 
   return (
     <>
@@ -69,6 +92,19 @@ export const CreatorMenuSection = ({ onDismiss }: { onDismiss?: () => void }) =>
 
         <Repeat size={14} className="text-muted-foreground flex-shrink-0" />
       </button>
+
+      {managedRealms.length > 1 && (
+        <div className="border-y border-border/70 py-1">
+          <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Pages you manage</p>
+          {managedRealms.map((managed) => (
+            <button key={managed.id} role="menuitem" onClick={() => void selectRealm(managed.id)} disabled={switchingRealm !== null} className={itemClass}>
+              <span className="h-6 w-6 shrink-0 overflow-hidden rounded-full"><UserAvatar src={managed.iconUrl} name={managed.name} fill ring={false} /></span>
+              <span className="min-w-0 flex-1 truncate">{managed.name}</span>
+              {switchingRealm === managed.id ? <Loader2 size={14} className="animate-spin text-muted-foreground" /> : managed.id === realm?.id ? <Check size={14} className="text-primary" /> : null}
+            </button>
+          ))}
+        </div>
+      )}
 
       <NextLink
         role="menuitem"

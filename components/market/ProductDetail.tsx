@@ -41,7 +41,7 @@ export function ProductDetail({ listing, busy, error, onClose, onBuy, onStatus, 
     <MallDialog title={listing.title} busy={busy} onClose={onClose} wide>
       <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-background/95 p-3 backdrop-blur">
         <button type="button" disabled={busy} onClick={onClose} aria-label="Close product" className="rounded-full p-2 hover:bg-muted"><ArrowLeft size={20} /></button>
-        <span className="truncate text-sm font-semibold">Shopping Mall · {listing.shop?.name ?? 'Your listing'}</span>
+        <span className="truncate text-sm font-semibold">Marketplace · {listing.shop?.name ?? 'Your listing'}</span>
       </header>
       <div className="lg:grid lg:grid-cols-[1.2fr_1fr]">
         <section className="relative flex min-h-64 items-center justify-center bg-black lg:sticky lg:top-16 lg:self-start">

@@ -21,6 +21,7 @@ import { Post } from '@/lib/types/post';
 import { mockComments } from '@/lib/mock';
 import { CommentSheet } from './CommentSheet';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { PostShareModal } from './PostShareModal';
 
 interface PostCardProps {
   post: Post;
@@ -36,6 +37,7 @@ export function PostCard({ post }: PostCardProps) {
   const [likeCount, setLikeCount] = useState(post.likes);
   const [bookmarked, setBookmarked] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [showBigHeart, setShowBigHeart] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const muted = useVideoSound((s) => s.muted);
@@ -98,7 +100,8 @@ export function PostCard({ post }: PostCardProps) {
   };
 
   const handleShare = () => {
-    requireAuth(() => showToast('Share feature coming soon', 'info'));
+    videoRef.current?.pause();
+    setShowShare(true);
   };
 
   const togglePlay = () => {
@@ -308,6 +311,12 @@ export function PostCard({ post }: PostCardProps) {
           <FontAwesomeIcon icon={faShare} className="h-6 w-6 text-muted-foreground" />
         </button>
       </div>
+      {showShare && <PostShareModal post={{
+        id: post.id, title: `${post.creatorName} on Signal Face`, text: post.caption,
+        path: `/app/for-you?post=${encodeURIComponent(post.id)}`,
+        thumbnail: post.type === 'image' ? post.imageUrl : post.type === 'video' ? post.poster : post.type === 'carousel' ? post.images[0] : null,
+        videos: post.type === 'video' ? [post.videoUrl] : [],
+      }} onClose={() => setShowShare(false)} />}
     </div>
   );
 }

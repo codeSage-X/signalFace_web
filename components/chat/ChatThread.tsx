@@ -9,6 +9,7 @@ import { useChat, type ChatMessage } from '@/hooks/useChat';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { MessageComposer } from '@/components/chat/MessageComposer';
 import { MessageMedia } from '@/components/chat/MessageMedia';
+import { MessageText } from '@/components/chat/MessageText';
 import type { FollowPerson } from '@/lib/api';
 
 /** Within this many pixels of the bottom counts as "following the conversation". */
@@ -223,7 +224,7 @@ export function ChatThread({
                       }`}
                     >
                       {message.media && <MessageMedia media={message.media} />}
-                      {message.text && <p className={`text-sm whitespace-pre-wrap break-words ${message.media ? 'mt-2' : ''}`}>{message.text}</p>}
+                      {message.text && <p className={`text-sm whitespace-pre-wrap break-words ${message.media ? 'mt-2' : ''}`}><MessageText text={message.text} /></p>}
                       <span
                         className={`mt-1 flex items-center gap-1 justify-end text-[10px] ${
                           mine ? 'text-white/70' : 'text-muted-foreground'

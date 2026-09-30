@@ -50,6 +50,8 @@ function dashboardActivity(item: ActivityItem): ActivityEntry {
         ? 'buy'
         : item.kind === 'follow'
           ? 'referral'
+          : item.kind === 'admin'
+            ? 'referral'
           : item.kind,
     text: item.body ? `${item.title}: ${item.body}` : item.title,
     time: timeAgo(item.createdAt),

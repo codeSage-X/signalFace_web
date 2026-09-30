@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   Bookmark,
+  Download,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -32,6 +33,9 @@ import {
 import { useAuth, useToast, useVideoSound } from '@/lib/stores';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { PostShareModal } from './PostShareModal';
+import { shareablePost } from '@/lib/post-sharing';
+import { downloadPostMedia } from '@/lib/media-download';
 
 const COMMENTS_PAGE = 12;
 
@@ -149,6 +153,7 @@ export function PostDetailModal({
   onIndexChange,
   onClose,
   onChanged,
+  showDownload = true,
 }: {
   /** The grid the viewer opened from, so they can move through it in place. */
   posts: FeedPost[];
@@ -157,6 +162,8 @@ export function PostDetailModal({
   onClose: () => void;
   /** Lets the grid behind stay in step with likes, saves and reposts. */
   onChanged?: (post: FeedPost) => void;
+  /** Lets a specific viewer suppress download actions when needed. */
+  showDownload?: boolean;
 }) {
   const current = posts[index];
 
@@ -164,6 +171,8 @@ export function PostDetailModal({
   // whenever the viewer moves to a different post.
   const [post, setPost] = useState<FeedPost>(current);
   const [mediaIndex, setMediaIndex] = useState(0);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const [comments, setComments] = useState<PostComment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(true);
@@ -328,6 +337,25 @@ export function PostDetailModal({
       }
     });
 
+  const handleDownload = async () => {
+    const item = items[mediaIndex];
+    if (!item || !showDownload || !post.allowDownload || post.moderation !== 'VISIBLE' || downloading) return;
+
+    setDownloading(true);
+    try {
+      await downloadPostMedia(item, `signalface-${post.id}-${mediaIndex + 1}`);
+      addToast({ message: `${item.kind === 'video' ? 'Video' : 'Image'} download started.`, type: 'success', duration: 2500 });
+    } catch (err) {
+      addToast({
+        message: err instanceof Error ? err.message : 'Could not download this media.',
+        type: 'error',
+        duration: 4000,
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const handleRepost = () =>
     requireAuth(async () => {
       const snapshot = { repostedByMe: post.repostedByMe, repostCount: post.repostCount };
@@ -363,19 +391,6 @@ export function PostDetailModal({
       }
     });
 
-  const handleShare = async () => {
-    const url = `${window.location.origin}/app/for-you?post=${post.id}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: `@${post.author.username} on Signal Face`, url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      addToast({ message: 'Link copied to clipboard.', type: 'success', duration: 3000 });
-    } catch {
-      // Share sheet dismissed — nothing to report.
-    }
-  };
 
   const submitComment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -489,7 +504,7 @@ export function PostDetailModal({
           className="relative flex-1 min-w-0 bg-black flex items-center justify-center min-h-[45vh] lg:min-h-0"
         >
           {items.length > 0 ? (
-            <Media item={items[mediaIndex]} active />
+            <Media item={items[mediaIndex]} active={!shareOpen} />
           ) : (
             <p className="px-8 text-center text-white/90 text-lg font-semibold whitespace-pre-line">
               {post.body}
@@ -686,12 +701,23 @@ export function PostDetailModal({
               </button>
 
               <button
-                onClick={handleShare}
+                onClick={() => setShareOpen(true)}
                 aria-label="Share"
                 className="p-2 rounded-lg hover:bg-white/5 transition"
               >
                 <Share2 size={20} className="text-foreground" />
               </button>
+
+              {showDownload && post.allowDownload && post.moderation === 'VISIBLE' && items.length > 0 && (
+                <button
+                  onClick={() => void handleDownload()}
+                  disabled={downloading}
+                  aria-label="Download media"
+                  className="p-2 rounded-lg hover:bg-white/5 transition disabled:opacity-50"
+                >
+                  {downloading ? <Loader2 size={20} className="animate-spin text-foreground" /> : <Download size={20} className="text-foreground" />}
+                </button>
+              )}
 
               <span className="ml-auto flex items-center gap-1.5 pr-1 text-muted-foreground">
                 <Eye size={16} />
@@ -722,6 +748,7 @@ export function PostDetailModal({
           </div>
         </aside>
       </div>
+      {shareOpen && <PostShareModal key={post.id} post={shareablePost(post)} showDownload={showDownload} onClose={() => setShareOpen(false)} />}
     </div>
   );
 }
