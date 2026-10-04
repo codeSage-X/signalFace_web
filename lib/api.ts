@@ -1166,7 +1166,10 @@ export const postsApi = {
       formData.append('aspectRatio', options.aspectRatio);
     }
     if (options?.cover) formData.append('cover', options.cover);
-    formData.append('allowDownload', String(options?.allowDownload ?? false));
+    // This is an explicit opt-in. Omitting the default `false` keeps uploads
+    // compatible with API instances deployed before the download-permission
+    // field was added; those instances already treat the missing value as false.
+    if (options?.allowDownload) formData.append('allowDownload', 'true');
     return uploadForm<FeedPost>('/posts', formData, options);
   },
   feed: (cursor?: string | null, limit?: number) =>
