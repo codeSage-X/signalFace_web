@@ -2,10 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/lib/stores';
-import { Bell, MessageCircle, Search, Settings, User, Briefcase, LogOut, Plus } from 'lucide-react';
+import { Bell, MessageCircle, Settings, User, Briefcase, LogOut, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BrandMark } from '@/components/BrandMark';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { MobileNavDrawer } from '@/components/layout/MobileNavDrawer';
 import { CreatorMenuSection } from '@/components/creator/CreatorMenuSection';
@@ -43,6 +42,12 @@ export const TopBar = ({
     logout();
     setOpen(false);
     router.push('/');
+  };
+
+  const openMobileSearch = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('search', '1');
+    router.push(`${url.pathname}${url.search}`);
   };
 
   // In creator mode the chrome wears the realm's identity, so it's always
@@ -213,29 +218,13 @@ export const TopBar = ({
         {dropdown}
       </div>
 
-      {/* Mobile: there's no sidebar, so the bar still carries brand + search */}
+      {/* Mobile: the drawer owns the brand and search affordance. */}
       <header className="lg:hidden flex h-14 items-center justify-between px-4 sticky top-0 z-30
         bg-background/70 backdrop-blur-xl border-b border-white/[0.06]">
-        <div className="flex items-center gap-2 min-w-0">
-          <MobileNavDrawer unreadMessages={unreadMessages} />
-          <Link href="/app/for-you" className="flex items-center gap-2 min-w-0">
-            <BrandMark size="sm" />
-            <span className="font-bold text-foreground text-base tracking-wide truncate">
-              SIGNAL FACE
-            </span>
-          </Link>
-        </div>
+        <div className="flex w-full items-center gap-2">
+          <MobileNavDrawer unreadMessages={unreadMessages} onSearch={openMobileSearch} />
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              router.push('/app/search');
-            }}
-            aria-label="Search"
-            className="text-muted-foreground hover:text-foreground transition p-1"
-          >
-            <Search size={20} />
-          </button>
+          <div className="ml-auto flex min-w-0 flex-1 items-center justify-evenly gap-1">
 
           <Link
             href="/app/activity"
@@ -281,11 +270,12 @@ export const TopBar = ({
           ) : (
             <button
               onClick={() => setAuthModalOpen(true)}
-              className="px-3 py-1.5 text-sm font-semibold brand-gradient text-white rounded-lg hover:brightness-110 transition"
+              className="whitespace-nowrap rounded-lg brand-gradient px-3 py-1.5 text-sm font-semibold text-white hover:brightness-110 transition"
             >
               Sign in
             </button>
           )}
+          </div>
         </div>
       </header>
     </>

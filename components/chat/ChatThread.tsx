@@ -38,11 +38,15 @@ export function ChatThread({
   conversationId,
   other,
   onBack,
+  initialDraft,
+  onInitialDraftApplied,
 }: {
   conversationId: string;
   /** The person on the other side, for the header and read receipts. */
   other: FollowPerson;
   onBack?: () => void;
+  initialDraft?: string;
+  onInitialDraftApplied?: () => void;
 }) {
   const { messages, loading, error, sending, sendMessage, markAsRead, me } = useChat(
     conversationId,
@@ -262,14 +266,16 @@ export function ChatThread({
         </div>
       )}
 
-      <MessageComposer
-        placeholder={`Message ${other.displayName}`}
-        sending={sending}
-        onSend={async (text, media) => {
-          setNearBottom(true);
-          await sendMessage(text, media);
-        }}
-      />
+    <MessageComposer
+  placeholder={`Message ${other.displayName}`}
+  sending={sending}
+  initialDraft={initialDraft}
+  onInitialDraftApplied={onInitialDraftApplied}
+  onSend={async (text, media) => {
+    setNearBottom(true);
+    await sendMessage(text, media);
+  }}
+/>
     </div>
   );
 }

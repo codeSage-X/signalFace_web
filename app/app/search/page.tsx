@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import NextLink from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Search as SearchIcon,
   X,
@@ -51,12 +51,14 @@ function fmt(n: number) {
 }
 
 function SearchPageInner() {
+  const pathname = usePathname();
   const router = useRouter();
   const params = useSearchParams();
   const { addToast } = useToast();
   const { terms, add: rememberTerm, remove: forgetTerm, clear: clearTerms } = useRecentSearches();
 
   const urlQuery = params.get('q') ?? '';
+  const mobileOverlay = params.get('search') === '1';
   // The input is local so typing stays responsive; the URL is updated on submit
   // so a search stays shareable and survives a reload.
   const [draft, setDraft] = useState(urlQuery);
@@ -132,10 +134,16 @@ function SearchPageInner() {
       rememberTerm(value);
       setDraft(value);
       setQuery(value);
-      router.replace(`/app/search?q=${encodeURIComponent(value)}`);
+      if (mobileOverlay) {
+        const nextParams = new URLSearchParams(params.toString());
+        nextParams.set('q', value);
+        router.replace(`${pathname}?${nextParams.toString()}`);
+      } else {
+        router.replace(`/app/search?q=${encodeURIComponent(value)}`);
+      }
       inputRef.current?.blur();
     },
-    [rememberTerm, router],
+    [mobileOverlay, params, pathname, rememberTerm, router],
   );
 
   const videos = results.posts.filter((p) => p.kind === 'video');

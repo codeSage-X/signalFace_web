@@ -75,6 +75,8 @@
   color-scheme: dark;
   --background: #08060c;
   --foreground: #f7f5fa;
+  --audio-control-bg: #ffffff;
+  --audio-control-fg: #000000;
   --surface: #12101a;
   --surface-raised: #161220;
   --card: #12101a;
@@ -126,6 +128,8 @@
   color-scheme: light;
   --background: #f5f5f7;
   --foreground: #1d1d1f;
+  --audio-control-bg: #000000;
+  --audio-control-fg: #ffffff;
   --surface: #ffffff;
   --surface-raised: #fafafc;
   --card: #ffffff;

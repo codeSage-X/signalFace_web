@@ -1292,6 +1292,18 @@ export function realmCategoryLabel(realm: { category: RealmCategory; customCateg
     : REALM_CATEGORY_LABELS[realm.category];
 }
 
+export interface PublicRealmSignalStats {
+  signalId: string;
+  marketCap: string;
+  signalsInCirculation: string;
+  holders: number;
+  volume24h: string;
+  trades24h: number;
+  buyers24h: number;
+  priceChangePct: number;
+  performance: Array<{ date: string; value: number }>;
+}
+
 export interface Realm {
   id: string;
   name: string;
@@ -1321,6 +1333,8 @@ export interface Realm {
   isFollowedByMe: boolean;
   /** Only returned by `getBySlug`. */
   signal?: UserSignal | null;
+  /** Public Realm-level metrics used by the creator profile page. */
+  signalStats?: PublicRealmSignalStats | null;
 }
 
 export interface RealmAdmin {

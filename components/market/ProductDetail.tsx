@@ -13,7 +13,7 @@ export function ProductDetail({ listing, busy, error, onClose, onBuy, onStatus, 
   onBuy: (input: MarketplaceOrderInput) => void;
   onStatus: (status: 'ACTIVE' | 'SOLD' | 'CANCELED') => void;
   onStock: (quantity: number) => void;
-  onMessage: (username: string) => void;
+onMessage: (username: string, draft: string) => void;
   onShop: (id: string) => void;
   onSelect: (listing: MarketplaceListing) => void;
 }) {
@@ -71,7 +71,21 @@ export function ProductDetail({ listing, busy, error, onClose, onBuy, onStatus, 
           </button>
           {error && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
           {!listing.isMine && <div className="space-y-4">
-            <button type="button" disabled={busy} onClick={() => onMessage(listing.seller.username)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary p-3 font-semibold text-primary"><MessageCircle size={18} /> Chat with seller</button>
+            {/* <button type="button" disabled={busy} onClick={() => onMessage(listing.seller.username)} className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary p-3 font-semibold text-primary"><MessageCircle size={18} /> Chat with seller</button> */}
+           <button
+  type="button"
+  disabled={busy}
+  onClick={() =>
+    onMessage(
+      listing.seller.username,
+      `Hi, I'm interested in "${listing.title}". I see the listed price is ${money(listing.price)}. Is it still available?`,
+    )
+  }
+  className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary p-3 font-semibold text-primary"
+>
+  <MessageCircle size={18} />
+  Chat with seller
+</button>
             {available && <form onSubmit={(event) => { event.preventDefault(); onBuy({ quantity, fulfillment, note }); }}>
               <fieldset disabled={busy} className="space-y-4">
                 <label className="block text-sm font-semibold">Quantity<input type="number" required min={1} max={listing.stockQuantity} step={1} value={Number.isNaN(quantity) ? '' : quantity} onChange={(event) => setQuantity(event.target.valueAsNumber)} className="glass-input mt-2 w-full rounded-lg p-3 font-normal" /></label>

@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
@@ -13,6 +14,7 @@ import { useMyRealmSync } from '@/hooks/useCreatorProfile';
 import { useActivityNotifications } from '@/hooks/useActivityNotifications';
 import { useMessageNotifications } from '@/hooks/useChat';
 import { useProfileMode } from '@/lib/stores';
+import { MobileSearchOverlay } from '@/components/search/MobileSearchOverlay';
 
 export default function AppLayout({
   children,
@@ -50,6 +52,9 @@ export default function AppLayout({
         </main>
         <BottomTabBar />
       </div>
+      <Suspense fallback={null}>
+        <MobileSearchOverlay />
+      </Suspense>
       <AuthGateModal />
       <BecomeCreatorModal
         open={becomeCreatorOpen}

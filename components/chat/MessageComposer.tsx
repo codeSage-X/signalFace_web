@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useRef, useState } from 'react';
+import { FormEvent,useEffect, useRef, useState } from 'react';
 import { ImagePlus, Laugh, Loader2, Send, ShieldAlert, Sticker, Video } from 'lucide-react';
 import { ApiError, chatMediaApi, type ChatMediaUpload } from '@/lib/api';
 
@@ -10,10 +10,14 @@ const MAX_INPUT_HEIGHT_PX = 120;
 export function MessageComposer({
   placeholder,
   sending,
+  initialDraft,
+  onInitialDraftApplied,
   onSend,
 }: {
   placeholder: string;
   sending: boolean;
+  initialDraft?: string;
+  onInitialDraftApplied?: () => void;
   onSend: (text: string, media?: ChatMediaUpload) => Promise<void>;
 }) {
   const [draft, setDraft] = useState('');
@@ -39,6 +43,16 @@ export function MessageComposer({
       setDraft(body);
     }
   };
+
+  const initialDraftApplied = useRef(false);
+
+useEffect(() => {
+  if (!initialDraft || initialDraftApplied.current) return;
+
+  initialDraftApplied.current = true;
+  setDraft(initialDraft);
+  onInitialDraftApplied?.();
+}, [initialDraft, onInitialDraftApplied]);
 
   const attach = async (file?: File) => {
     if (!file || sending || uploading) return;

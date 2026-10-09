@@ -6,7 +6,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, MessageCircle, Search as SearchIcon } from 'lucide-react';
 import { usersApi, type FollowPerson } from '@/lib/api';
-import { useAuth } from '@/lib/stores';
+import { useAuth, useMarketplaceMessageDraft } from '@/lib/stores';
 import { useConversations } from '@/hooks/useChat';
 import { directConversationId, isChatConfigured } from '@/lib/chatClient';
 import { ChatThread } from '@/components/chat/ChatThread';
@@ -17,6 +17,8 @@ function MessagesInner() {
   const router = useRouter();
   const params = useSearchParams();
   const { user, isAuthenticated, setAuthModalOpen } = useAuth();
+  const pendingDraft = useMarketplaceMessageDraft((state) => state.pendingDraft);
+  const clearPendingDraft = useMarketplaceMessageDraft((state) => state.clearPendingDraft);
 
   // Who the open thread is with. Carried in the URL so a "Message" button on a
   // profile can deep-link straight into the conversation.
@@ -285,6 +287,8 @@ function MessagesInner() {
             conversationId={conversationId}
             other={other}
             onBack={() => router.push('/app/messages')}
+            initialDraft={pendingDraft ?? undefined}
+            onInitialDraftApplied={clearPendingDraft}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center px-6">

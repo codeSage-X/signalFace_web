@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X } from 'lucide-react';
+import { Menu, Search, X } from 'lucide-react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGear, faSignOut, faUpload } from '@fortawesome/free-solid-svg-icons';
 import { BrandMark } from '@/components/BrandMark';
@@ -16,7 +16,13 @@ import { useAuth } from '@/lib/stores';
  * is where the rest live on mobile, reusing the sidebar's `navItems` so the two
  * can't drift apart.
  */
-export const MobileNavDrawer = ({ unreadMessages = 0 }: { unreadMessages?: number }) => {
+export const MobileNavDrawer = ({
+  unreadMessages = 0,
+  onSearch,
+}: {
+  unreadMessages?: number;
+  onSearch?: () => void;
+}) => {
   const [open, setOpen] = useState(false);
   // `createPortal` needs a DOM, which the server render doesn't have.
   const [mounted, setMounted] = useState(false);
@@ -94,7 +100,11 @@ export const MobileNavDrawer = ({ unreadMessages = 0 }: { unreadMessages?: numbe
             />
 
             <div className="relative z-10 flex items-center justify-between px-4 h-14 border-b border-border">
-              <Link href="/app/for-you" className="flex items-center gap-2">
+              <Link
+                href="/app/for-you"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2"
+              >
                 <BrandMark size="sm" />
                 <span className="font-bold text-foreground text-sm tracking-wide">
                   SIGNAL FACE
@@ -106,6 +116,20 @@ export const MobileNavDrawer = ({ unreadMessages = 0 }: { unreadMessages?: numbe
                 className="text-muted-foreground hover:text-foreground transition p-1"
               >
                 <X size={20} />
+              </button>
+            </div>
+
+            <div className="relative z-10 flex justify-center px-4 py-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onSearch?.();
+                }}
+                aria-label="Search"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-primary ring-2 ring-[#FF6F9C] shadow-[0_0_12px_rgba(255,111,156,0.35)] transition hover:brightness-110"
+              >
+                <Search size={22} />
               </button>
             </div>
 

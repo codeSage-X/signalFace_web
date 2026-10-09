@@ -58,6 +58,19 @@ export const useProfileMode = create<ProfileModeState>()(
   ),
 );
 
+interface MarketplaceMessageDraftState {
+  pendingDraft: string | null;
+  setPendingDraft: (draft: string) => void;
+  clearPendingDraft: () => void;
+}
+
+export const useMarketplaceMessageDraft =
+  create<MarketplaceMessageDraftState>((set) => ({
+    pendingDraft: null,
+    setPendingDraft: (pendingDraft) => set({ pendingDraft }),
+    clearPendingDraft: () => set({ pendingDraft: null }),
+  }));
+
 export interface UserSignal {
   id: string;
   score: string;

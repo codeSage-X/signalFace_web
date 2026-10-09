@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Loader2, MapPin, MessageCircle, Plus, Search, ShoppingBag, Store } from 'lucide-react';
@@ -9,7 +10,7 @@ import {
   type MarketplaceOrderInput, type MarketplaceOrderStatus, type MarketplaceShopType,
   type MarketplaceStorefront,
 } from '@/lib/api';
-import { useAuth, useToast } from '@/lib/stores';
+import { useAuth, useMarketplaceMessageDraft, useToast } from '@/lib/stores';
 import { useMarketplacePage } from '@/hooks/useMarketplacePage';
 import { ProductCard } from '@/components/market/ProductCard';
 import { ProductDetail } from '@/components/market/ProductDetail';
@@ -17,7 +18,6 @@ import { SellModal } from '@/components/market/SellModal';
 import { ShopRegistration } from '@/components/market/ShopRegistration';
 import { OrderCard } from '@/components/market/OrderCard';
 import { CATEGORIES, SHOP_TYPES, messageHref, money, shopTypeLabel } from '@/components/market/market-utils';
-
 const VIEWS = [
   { value: 'browse', label: 'Items' }, { value: 'shops', label: 'Shops' },
   { value: 'orders', label: 'My orders' }, { value: 'selling', label: 'My shop' },
@@ -33,6 +33,9 @@ function Empty({ children }: { children: React.ReactNode }) {
 }
 
 function MarketPageInner() {
+  const setPendingDraft = useMarketplaceMessageDraft(
+  (state) => state.setPendingDraft,
+);
   const router = useRouter();
   const params = useSearchParams();
   const shopId = params.get('shop');
@@ -126,11 +129,18 @@ function MarketPageInner() {
     setView(next); setQuery(''); setSubmittedQuery(''); setCategory('');
   }
   function openShop(id: string) { selectionRequest.current++; setSelected(null); router.push(`/app/market?shop=${encodeURIComponent(id)}`); }
-  function message(username: string) {
-    selectionRequest.current++; setSelected(null);
-    if (!isAuthenticated) { setAuthModalOpen(true); return; }
-    router.push(messageHref(username));
+ function message(username: string, draft = '') {
+  selectionRequest.current++;
+  setSelected(null);
+
+  if (!isAuthenticated) {
+    setAuthModalOpen(true);
+    return;
   }
+
+  setPendingDraft(draft);
+  router.push(messageHref(username));
+}
   async function openProduct(listing: MarketplaceListing) {
     const request = ++selectionRequest.current;
     setDetailError(''); setSelected(listing);

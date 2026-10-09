@@ -7,6 +7,7 @@ import {
   Heart, MessageCircle, Share2, Eye, Bookmark, Repeat2,
   Volume2, VolumeX, Play, Plus, Check, Loader2, X, Send,
   ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Download,
+  MoreHorizontal,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -41,6 +42,11 @@ const TEXT_BACKGROUNDS = [
   'from-[#2E0F45] via-[#5B1B6B] to-[#1A1424]',
 ];
 
+// The rail's outline: a lighter Signal Face pink with a soft pink glow, so the
+// chips read as lit-up brand elements rather than heavy dark rings. One place
+// to change it — both the chips and the avatar use it.
+const RAIL_RING = 'ring-2 ring-[#FF6F9C] shadow-[0_0_12px_rgba(255,111,156,0.55)]';
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -71,31 +77,52 @@ function postDateTime(iso: string) {
 
 // ─── Action button ────────────────────────────────────────────────────────────
 function ActionBtn({
-  icon, count, onClick, label,
+  icon, count, onClick, label, expanded, className = '',
 }: {
   icon: React.ReactNode;
   count?: string;
   onClick?: () => void;
   label?: string;
+  /** Set only on a disclosure button, so screen readers announce its state. */
+  expanded?: boolean;
+  className?: string;
 }) {
   return (
     <button
       onClick={onClick}
       aria-label={label}
+      aria-expanded={expanded}
       title={label}
-      className="flex flex-col items-center gap-1 group text-white lg:text-foreground active:scale-90 transition-transform"
+      className={`flex flex-col items-center gap-1 group text-white lg:text-foreground active:scale-90 transition-transform focus-visible:outline-none ${className}`}
     >
-      <div className="w-11 h-11 rounded-full glass-chip flex items-center justify-center group-hover:brightness-125 transition">
-        {icon}
+      {/* Brand-pink ring so the chip holds its edge on bright frames, where a
+          white glass chip on a white background simply disappeared. The focus
+          ring is drawn on the circle rather than as a square browser outline. */}
+      <div className={`w-11 h-11 rounded-full glass-chip ${RAIL_RING} flex items-center justify-center group-hover:brightness-125 group-focus-visible:ring-4 transition`}>
+        {/* Icons draw with currentColor, so this one class turns every glyph
+            pink — outlines, the filled bookmark, and the ellipsis/✕. States
+            with their own colour (liked heart, green repost) still win. */}
+        <span className="flex text-primary">
+          {icon}
+        </span>
       </div>
       {count && (
-        <span className="text-xs font-semibold drop-shadow-sm">{count}</span>
+        <span className="text-xs font-semibold [text-shadow:0_1px_3px_rgba(0,0,0,0.7)] lg:[text-shadow:none]">
+          {count}
+        </span>
       )}
     </button>
   );
 }
 
 // ─── Action column (right side) ───────────────────────────────────────────────
+/**
+ * On mobile the rail floats over the media, so it shows only the two actions
+ * people reach for most (like, comment) plus an ellipsis that opens the
+ * "More" bottom sheet. Expanding the rail in place pushed it off the top of
+ * shorter screens; a sheet always fits. From `lg` the rail sits beside the
+ * card with room to spare, so everything is shown and the ellipsis disappears.
+ */
 function ActionColumn({
   post,
   followPending,
@@ -105,6 +132,7 @@ function ActionColumn({
   onRepost,
   onShare,
   onDownload,
+  onOpenMore,
   onToggleFollow,
 }: {
   post: FeedPost;
@@ -115,6 +143,7 @@ function ActionColumn({
   onRepost: () => void;
   onShare: () => void;
   onDownload?: () => void;
+  onOpenMore: () => void;
   onToggleFollow: () => void;
 }) {
   // A realm post is credited to the page, so the avatar column wears the realm's
@@ -126,6 +155,9 @@ function ActionColumn({
 
   const isFollowed = realm ? realm.followedByMe : post.author.followedByMe;
 
+  // Tells the ellipsis that something inside the sheet is switched on.
+  const hiddenStateActive = post.bookmarkedByMe || post.repostedByMe;
+
   return (
     <div className="flex flex-col items-center gap-4 pb-4 flex-shrink-0">
       {/* Avatar opens the profile behind the post; the badge follows it */}
@@ -133,7 +165,7 @@ function ActionColumn({
         <Link
           href={href}
           title={`View @${handle}`}
-          className={`block w-12 h-12 bg-black dark:bg-white flex items-center justify-center text-white font-bold text-xs ring-2 ring-white/80 lg:ring-border shadow-lg overflow-hidden hover:brightness-110 transition ${
+          className={`block w-12 h-12 bg-black dark:bg-white flex items-center justify-center text-white font-bold text-xs ${RAIL_RING} overflow-hidden hover:brightness-110 transition ${
             // Square-ish for a page, round for a person — the same visual
             // grammar Facebook and Instagram use.
             realm ? 'rounded-xl' : 'rounded-full'
@@ -163,6 +195,7 @@ function ActionColumn({
         )}
       </div>
 
+      {/* ── Always visible ── */}
       <ActionBtn
         icon={
           <Heart
@@ -173,46 +206,235 @@ function ActionColumn({
         }
         count={fmt(post.likeCount)}
         onClick={onLike}
+        label={post.likedByMe ? 'Unlike' : 'Like'}
       />
       <ActionBtn
         icon={<MessageCircle size={22} />}
         count={fmt(post.commentCount)}
         onClick={onOpenComments}
+        label="Comments"
       />
-      <ActionBtn
-        icon={
-          <Bookmark
-            size={22}
-            fill={post.bookmarkedByMe ? 'currentColor' : 'none'}
-          />
-        }
-        count={fmt(post.bookmarkCount)}
-        onClick={onBookmark}
-      />
-      <ActionBtn
-        icon={
-          <Repeat2
-            size={22}
-            // Filling a Repeat2 glyph reads as a smudge, so an active repost is
-            // shown by colour instead.
-            stroke={post.repostedByMe ? '#22c55e' : 'currentColor'}
-          />
-        }
-        count={fmt(post.repostCount ?? 0)}
-        onClick={onRepost}
-      />
-      <ActionBtn
-        icon={<Share2 size={22} />}
-        onClick={onShare}
-        label="Share post"
-      />
-      {onDownload && (
-        <ActionBtn icon={<Download size={22} />} onClick={onDownload} label="Download media" />
-      )}
 
-      <div className="flex flex-col items-center gap-1 text-white/70 lg:text-muted-foreground">
+      {/* ── Desktop only: the rest of the rail, always shown ── */}
+      <div className="hidden lg:flex flex-col items-center gap-4">
+        <ActionBtn
+          icon={
+            <Bookmark
+              size={22}
+              fill={post.bookmarkedByMe ? 'currentColor' : 'none'}
+            />
+          }
+          count={fmt(post.bookmarkCount)}
+          onClick={onBookmark}
+          label={post.bookmarkedByMe ? 'Remove from favorites' : 'Save'}
+        />
+        <ActionBtn
+          icon={
+            <Repeat2
+              size={22}
+              // Filling a Repeat2 glyph reads as a smudge, so an active repost is
+              // shown by colour instead.
+              stroke={post.repostedByMe ? '#22c55e' : 'currentColor'}
+            />
+          }
+          count={fmt(post.repostCount ?? 0)}
+          onClick={onRepost}
+          label={post.repostedByMe ? 'Undo repost' : 'Repost'}
+        />
+        <ActionBtn
+          icon={<Share2 size={22} />}
+          onClick={onShare}
+          label="Share post"
+        />
+        {onDownload && (
+          <ActionBtn icon={<Download size={22} />} onClick={onDownload} label="Download media" />
+        )}
+
+        <div className="flex flex-col items-center gap-1 text-muted-foreground">
+          <Eye size={18} />
+          <span className="text-xs font-semibold">{fmt(post.viewCount)}</span>
+        </div>
+      </div>
+
+      {/* ── Mobile only: ellipsis opens the More sheet ── */}
+      <div className="relative lg:hidden">
+        <ActionBtn
+          icon={<MoreHorizontal size={22} />}
+          onClick={onOpenMore}
+          label="More actions"
+        />
+        {hiddenStateActive && (
+          <span
+            aria-hidden
+            className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full brand-gradient ring-2 ring-white pointer-events-none"
+          />
+        )}
+      </div>
+
+      {/* ── Mobile only: views close the rail, under the ellipsis ── */}
+      <div className="flex lg:hidden flex-col items-center gap-1 text-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]">
         <Eye size={18} />
         <span className="text-xs font-semibold">{fmt(post.viewCount)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── "More" bottom sheet (mobile) ─────────────────────────────────────────────
+function SheetTile({
+  icon, label, onClick, active = false, activeClass = 'brand-gradient',
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  /** Filled when on — a saved post, an active repost. */
+  active?: boolean;
+  activeClass?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 active:scale-90 transition-transform focus-visible:outline-none group"
+    >
+      <span
+        className={`w-14 h-14 rounded-full flex items-center justify-center transition group-focus-visible:ring-4 ${
+          active
+            ? `${activeClass} text-white ring-2 ring-transparent`
+            : 'bg-muted text-primary ring-2 ring-[#FF6F9C]'
+        }`}
+      >
+        {icon}
+      </span>
+      <span className="text-xs font-medium text-foreground text-center leading-tight">{label}</span>
+    </button>
+  );
+}
+
+/**
+ * Everything the mobile rail leaves out, in a sheet that rises from the bottom
+ * — the TikTok/Instagram pattern people already know. Rendered by the feed,
+ * not the card, because the card's slide-up animation would make `fixed`
+ * position relative to the card instead of the screen.
+ */
+function MoreActionsSheet({
+  post,
+  onClose,
+  onBookmark,
+  onRepost,
+  onShare,
+  onDownload,
+}: {
+  post: FeedPost;
+  onClose: () => void;
+  onBookmark: () => void;
+  onRepost: () => void;
+  onShare: () => void;
+  onDownload?: () => void;
+}) {
+  const [shown, setShown] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const dragStart = useRef<number | null>(null);
+
+  // Mount off-screen, then slide in on the next frame so the transition runs.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Slide out first, unmount after — the duration matches the transition.
+  const close = useCallback(() => {
+    setShown(false);
+    setDragY(0);
+    window.setTimeout(onClose, 250);
+  }, [onClose]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [close]);
+
+  // Drag the sheet down to dismiss, like a native one.
+  const onTouchStart = (e: React.TouchEvent) => {
+    dragStart.current = e.touches[0].clientY;
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (dragStart.current === null) return;
+    setDragY(Math.max(0, e.touches[0].clientY - dragStart.current));
+  };
+  const onTouchEnd = () => {
+    dragStart.current = null;
+    if (dragY > 90) close();
+    else setDragY(0);
+  };
+
+  // Actions that hand off to another screen close the sheet first.
+  const thenClose = (fn: () => void) => () => {
+    close();
+    fn();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end lg:hidden" role="dialog" aria-modal="true" aria-label="More actions">
+      <div
+        className={`absolute inset-0 bg-black/60 transition-opacity duration-300 ${shown ? 'opacity-100' : 'opacity-0'}`}
+        onClick={close}
+      />
+
+      <div
+        className="relative w-full glass-card rounded-t-3xl shadow-2xl pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+        style={{
+          transform: shown ? `translateY(${dragY}px)` : 'translateY(100%)',
+          transition: dragStart.current === null ? 'transform 250ms cubic-bezier(0.32, 0.72, 0, 1)' : 'none',
+        }}
+      >
+        {/* Grab handle + header — the drag zone */}
+        <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} className="touch-none">
+          <div className="flex justify-center pt-3">
+            <span className="w-10 h-1.5 rounded-full bg-muted-foreground/30" />
+          </div>
+          <div className="flex items-center justify-between px-5 pt-3 pb-2">
+            <div className="w-9" />
+            <h3 className="font-bold text-foreground">More</h3>
+            <button
+              onClick={close}
+              aria-label="Close"
+              className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Save/repost counts the mobile rail doesn't show (views stay on the rail) */}
+        <div className="flex items-center justify-center gap-5 px-5 pb-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5"><Bookmark size={14} /> {fmt(post.bookmarkCount)}</span>
+          <span className="flex items-center gap-1.5"><Repeat2 size={14} /> {fmt(post.repostCount ?? 0)}</span>
+        </div>
+
+        <div className="border-t border-border mx-5" />
+
+        <div className="grid grid-cols-4 gap-y-5 px-5 pt-5">
+          <SheetTile
+            icon={<Repeat2 size={24} />}
+            label={post.repostedByMe ? 'Reposted' : 'Repost'}
+            active={post.repostedByMe}
+            activeClass="bg-[#22c55e]"
+            onClick={onRepost}
+          />
+          <SheetTile
+            icon={<Bookmark size={24} fill={post.bookmarkedByMe ? 'currentColor' : 'none'} />}
+            label={post.bookmarkedByMe ? 'Saved' : 'Save'}
+            active={post.bookmarkedByMe}
+            onClick={onBookmark}
+          />
+          <SheetTile icon={<Share2 size={24} />} label="Share" onClick={thenClose(onShare)} />
+          {onDownload && (
+            <SheetTile icon={<Download size={24} />} label="Download" onClick={thenClose(onDownload)} />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -247,7 +469,6 @@ function VideoSlide({
   const ref = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   const muted = useVideoSound((s) => s.muted);
-  const toggleMuted = useVideoSound((s) => s.toggleMuted);
 
   // Only the slide the viewer is actually on plays: a post can hold several
   // videos, and all of them playing at once would be a wall of noise.
@@ -293,16 +514,32 @@ function VideoSlide({
         </div>
       )}
 
-      <button
-        onClick={(e) => { e.stopPropagation(); toggleMuted(); }}
-        className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center hover:bg-black/70 transition z-10"
-      >
-        {muted
-          ? <VolumeX size={16} className="text-white" />
-          : <Volume2 size={16} className="text-white" />
-        }
-      </button>
     </div>
+  );
+}
+
+/**
+ * Sound toggle for the card. It lives on the card, not inside the video slide:
+ * a slide is clipped by the carousel track, shrinks to the author's frame on
+ * letterboxed video, and shares a z-index with the header gradient — any of
+ * which could hide it. Up here it's always in the same place and on top.
+ */
+function MuteButton() {
+  const muted = useVideoSound((s) => s.muted);
+  const toggleMuted = useVideoSound((s) => s.toggleMuted);
+
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); toggleMuted(); }}
+      aria-label={muted ? 'Unmute' : 'Mute'}
+      title={muted ? 'Unmute' : 'Mute'}
+      className="absolute bottom-24 left-4 lg:bottom-auto lg:left-auto lg:top-4 lg:right-4 z-30 w-10 h-10 rounded-full brand-gradient ring-2 ring-white/80 shadow-lg shadow-black/40 flex items-center justify-center hover:brightness-110 active:scale-90 transition"
+    >
+      {muted
+        ? <VolumeX size={18} className="text-white" strokeWidth={2.5} />
+        : <Volume2 size={18} className="text-white" strokeWidth={2.5} />
+      }
+    </button>
   );
 }
 
@@ -464,7 +701,7 @@ function TextContent({ post, index }: { post: FeedPost; index: number }) {
   );
 }
 
-function PostHeader({ post }: { post: FeedPost }) {
+function PostHeader({ post, reserveRight = false }: { post: FeedPost; reserveRight?: boolean }) {
   const name = post.realm?.name ?? post.author.displayName;
   const href = post.realm ? `/app/r/${post.realm.slug}` : `/app/u/${post.author.username}`;
   const meta = post.realm
@@ -472,7 +709,7 @@ function PostHeader({ post }: { post: FeedPost }) {
     : `@${post.author.username}`;
 
   return (
-    <div className="absolute top-0 left-0 right-0 z-10 px-4 py-4 bg-gradient-to-b from-black via-black/85 to-transparent text-white pointer-events-none">
+    <div className={`absolute top-0 left-0 right-0 z-10 pl-4 ${reserveRight ? 'pr-4 lg:pr-16' : 'pr-4'} py-4 bg-gradient-to-b from-black via-black/85 to-transparent text-white pointer-events-none`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -838,7 +1075,7 @@ function CommentsPanel({
 // ─── Single feed item ─────────────────────────────────────────────────────────
 function FeedItem({
   post, index, isActive, followPending, onVisible, onLike, onOpenComments,
-  onBookmark, onRepost, onShare, onDownload, onToggleFollow,
+  onBookmark, onRepost, onShare, onDownload, onOpenMore, onToggleFollow,
 }: {
   post: FeedPost;
   index: number;
@@ -851,6 +1088,8 @@ function FeedItem({
   onRepost: () => void;
   onShare: () => void;
   onDownload?: (item: PostMediaItem) => void;
+  /** Opens the mobile More sheet, carrying the download for the slide on screen. */
+  onOpenMore: (download?: () => void) => void;
   onToggleFollow: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -876,6 +1115,18 @@ function FeedItem({
 
   const isCarousel = post.kind === 'image' && post.mediaUrls.length > 1;
 
+  // Bound to whichever slide is on screen, for both the rail and the sheet.
+  const downloadCurrent = onDownload && mediaItems[activeMediaIndex]
+    ? () => onDownload(mediaItems[activeMediaIndex])
+    : undefined;
+
+  // Follows the slide on screen, so a mixed post shows the toggle on its video
+  // and hides it on its images. Moderated media has nothing to listen to.
+  const showSound =
+    post.kind !== 'text' &&
+    post.moderation === 'VISIBLE' &&
+    mediaItems[activeMediaIndex]?.kind === 'video';
+
   return (
     <div
       ref={ref}
@@ -895,7 +1146,8 @@ function FeedItem({
           {(post.moderation === 'CENSORED' || post.moderation === 'REMOVED') && (
             <ModeratedMedia />
           )}
-          <PostHeader post={post} />
+          <PostHeader post={post} reserveRight={showSound} />
+          {showSound && <MuteButton />}
         </div>
 
         {/* Action icons — over the media on mobile, right of the card on desktop.
@@ -909,9 +1161,8 @@ function FeedItem({
             onBookmark={onBookmark}
             onRepost={onRepost}
             onShare={onShare}
-            onDownload={onDownload && mediaItems[activeMediaIndex]
-              ? () => onDownload(mediaItems[activeMediaIndex])
-              : undefined}
+            onDownload={downloadCurrent}
+            onOpenMore={() => onOpenMore(downloadCurrent)}
             onToggleFollow={onToggleFollow}
           />
         </div>
@@ -939,11 +1190,17 @@ export function FeedSkeleton() {
           </div>
         </div>
 
-        {/* Action rail placeholder */}
+        {/* Action rail placeholder — 3 chips on mobile, 5 from `lg`, matching
+            the real rail at each size. */}
         <div className="absolute right-1.5 bottom-24 z-20 lg:static lg:right-auto lg:bottom-auto flex flex-col items-center gap-4 pb-4">
           <div className="w-12 h-12 rounded-full bg-muted-foreground/25 animate-pulse mb-2" />
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="w-11 h-11 rounded-full bg-muted-foreground/25 animate-pulse" />
+            <div
+              key={i}
+              className={`w-11 h-11 rounded-full bg-muted-foreground/25 animate-pulse ${
+                i >= 3 ? 'hidden lg:block' : ''
+              }`}
+            />
           ))}
         </div>
       </div>
@@ -1015,6 +1272,9 @@ export function ImmersiveFeed({
   const [current, setCurrent] = useState(initialIndex);
   const [commentsFor, setCommentsFor] = useState<FeedPost | null>(null);
   const [shareFor, setShareFor] = useState<FeedPost | null>(null);
+  // The mobile More sheet: which post, plus the download for its current slide.
+  // Held by id so the sheet reads the live post and reflects save/repost taps.
+  const [moreFor, setMoreFor] = useState<{ postId: string; download?: () => void } | null>(null);
   // Username currently being followed/unfollowed, so the badge can spin.
   const [followPending, setFollowPending] = useState<string | null>(null);
 
@@ -1408,6 +1668,7 @@ export function ImmersiveFeed({
             onBookmark={() => handleBookmark(post)}
             onRepost={() => handleRepost(post)}
             onShare={() => setShareFor(post)}
+            onOpenMore={(download) => setMoreFor({ postId: post.id, download })}
             onDownload={
               showDownload && post.allowDownload && post.moderation === 'VISIBLE' && post.mediaUrls.length
                 ? (item) => void handleDownload(post, item)
@@ -1427,6 +1688,22 @@ export function ImmersiveFeed({
           </div>
         )}
       </div>
+
+      {moreFor && (() => {
+        const post = posts.find((p) => p.id === moreFor.postId);
+        if (!post) return null;
+        return (
+          <MoreActionsSheet
+            key={post.id}
+            post={post}
+            onClose={() => setMoreFor(null)}
+            onBookmark={() => handleBookmark(post)}
+            onRepost={() => handleRepost(post)}
+            onShare={() => setShareFor(post)}
+            onDownload={moreFor.download}
+          />
+        );
+      })()}
 
       {shareFor && <PostShareModal key={shareFor.id} post={shareablePost(shareFor)} showDownload={showDownload} onClose={() => setShareFor(null)} />}
 

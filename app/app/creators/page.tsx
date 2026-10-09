@@ -10,7 +10,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import NextLink from 'next/link';
-import { BadgeCheck, Loader2, Plus, Search, Sparkles, Users } from 'lucide-react';
+import { BadgeCheck, Loader2, Plus, Search, Sparkles, Star, Users } from 'lucide-react';
 import {
   REALM_CATEGORIES,
   REALM_CATEGORY_LABELS,
@@ -269,6 +269,7 @@ const FilterChip = ({
   </button>
 );
 
+
 const RealmCard = ({
   realm,
   pending,
@@ -278,68 +279,105 @@ const RealmCard = ({
   pending: boolean;
   onFollow: () => void;
 }) => (
-  <div className="glass-card glass-hover rounded-2xl overflow-hidden">
-    {/* Cover */}
+  <div className="glass-card rounded-3xl overflow-hidden p-6 flex flex-col items-center text-center min-w-0">
+    {/* Glowing creator avatar */}
     <NextLink
       href={`/app/r/${realm.slug}`}
-      className="block relative h-24 overflow-hidden bg-gradient-to-br from-violet-800 via-fuchsia-800 to-rose-900"
+      className="relative flex items-center justify-center mb-5"
+      aria-label={`View ${realm.name}`}
     >
-      {realm.coverUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={realm.coverUrl} alt="" className="w-full h-full object-cover" />
-      )}
+      <div className="absolute inset-[-18px] rounded-full bg-fuchsia-600/20 blur-2xl" />
+
+      <div className="relative w-32 h-32 rounded-full p-[5px] bg-gradient-to-br from-pink-500 via-fuchsia-500 to-purple-600 shadow-[0_0_30px_rgba(236,72,153,0.4)]">
+        <div className="w-full h-full rounded-full bg-background p-[5px]">
+          <div className="w-full h-full rounded-full overflow-hidden">
+            <UserAvatar
+              src={realm.iconUrl}
+              name={realm.name}
+              fill
+              ring={false}
+            />
+          </div>
+        </div>
+      </div>
     </NextLink>
 
-    <div className="p-4 -mt-8 relative">
-      <NextLink href={`/app/r/${realm.slug}`} className="block">
-        <div className="w-14 h-14 rounded-xl bg-black dark:bg-white flex items-center justify-center text-xl font-bold text-white overflow-hidden ring-4 ring-background">
-          <UserAvatar src={realm.iconUrl} name={realm.name} fill ring={false} />
-        </div>
-      </NextLink>
+    {/* Creator name */}
+    <NextLink
+      href={`/app/r/${realm.slug}`}
+      className="flex items-center justify-center gap-2 max-w-full"
+    >
+      <h3 className="text-2xl font-bold text-foreground truncate">
+        {realm.name}
+      </h3>
+      <BadgeCheck
+        size={23}
+        className="text-pink-500 fill-pink-500 flex-shrink-0"
+      />
+    </NextLink>
 
-      <div className="mt-3">
-        <NextLink href={`/app/r/${realm.slug}`} className="flex items-center gap-1.5 min-w-0">
-          <h3 className="font-bold text-foreground truncate hover:underline">{realm.name}</h3>
-          <BadgeCheck size={14} className="text-primary flex-shrink-0" />
-        </NextLink>
-        <p className="text-xs text-muted-foreground">@{realm.slug}</p>
-      </div>
+    {/* Category and followers */}
+    <p className="mt-2 text-sm text-muted-foreground">
+      {realmCategoryLabel(realm)} ·{' '}
+      {realm.followersCount.toLocaleString()}{' '}
+      {realm.followersCount === 1 ? 'Follower' : 'Followers'}
+    </p>
 
-      <div className="mt-2 flex items-center gap-2">
-        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sidebar-accent text-foreground">
-          {realmCategoryLabel(realm)}
-        </span>
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Users size={12} />
-          {realm.followersCount.toLocaleString()}
-        </span>
-      </div>
+    {/* Signal value: connect these to your actual Signal data */}
+    <div className="mt-6 mb-7">
+      <p className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground">
+        $0.00
+      </p>
+      <p className="mt-1 text-sm font-semibold text-emerald-400">
+        +0.0% <span className="text-muted-foreground">(24h)</span>
+      </p>
+    </div>
 
-      {realm.tagline && (
-        <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{realm.tagline}</p>
-      )}
-
-      {realm.isMine ? (
-        <NextLink
-          href="/app/realm"
-          className="mt-4 block w-full text-center py-2 rounded-lg text-sm font-semibold glass-chip text-foreground hover:brightness-110 transition"
-        >
-          Your realm
-        </NextLink>
-      ) : (
+    {/* Follow, Buy Signal and Watchlist */}
+    <div className="w-full mt-auto grid grid-cols-[1fr_1fr_52px] gap-2 items-stretch">
+      {!realm.isMine ? (
         <button
           onClick={onFollow}
           disabled={pending}
-          className={`mt-4 w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-60 ${
+          className={`min-w-0 rounded-xl px-2 py-3 text-sm font-semibold transition disabled:opacity-60 ${
             realm.isFollowedByMe
               ? 'glass-chip text-foreground hover:brightness-110'
               : 'brand-gradient text-white hover:brightness-110'
           }`}
         >
-          {pending && <Loader2 size={13} className="animate-spin" />}
-          {realm.isFollowedByMe ? 'Following' : 'Follow'}
+          {pending ? (
+            <Loader2 size={16} className="animate-spin mx-auto" />
+          ) : realm.isFollowedByMe ? (
+            'Following'
+          ) : (
+            'Follow'
+          )}
         </button>
+      ) : (
+        <NextLink
+          href="/app/realm"
+          className="rounded-xl px-2 py-3 text-sm font-semibold glass-chip text-foreground flex items-center justify-center"
+        >
+          Your realm
+        </NextLink>
       )}
+
+      <NextLink
+        href={`/app/r/${realm.slug}`}
+        className="rounded-xl px-2 py-3 text-sm font-semibold text-white brand-gradient hover:brightness-110 transition flex items-center justify-center"
+      >
+        Buy Signal
+      </NextLink>
+
+      <button
+        type="button"
+        aria-label={`Add ${realm.name} to watchlist`}
+        title="Add to watchlist"
+        className="rounded-xl border border-pink-500/60 text-pink-500 hover:bg-pink-500/10 transition flex items-center justify-center"
+      >
+        <Star size={20} />
+      </button>
     </div>
   </div>
 );
+
