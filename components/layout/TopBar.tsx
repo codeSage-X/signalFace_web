@@ -10,6 +10,7 @@ import { MobileNavDrawer } from '@/components/layout/MobileNavDrawer';
 import { CreatorMenuSection } from '@/components/creator/CreatorMenuSection';
 import { useProfileSwitch } from '@/hooks/useCreatorProfile';
 import { UserAvatar } from '@/components/UserAvatar';
+import { Tooltip } from '@/components/ui/tooltip';
 
 export const TopBar = ({
   unreadMessages = 0,
@@ -145,63 +146,72 @@ export const TopBar = ({
           so there's no full-width bar to reserve vertical space. */}
       <div className="hidden lg:block fixed top-4 right-6 z-40" ref={desktopRef}>
         <div className="flex items-center gap-1 glass-chip rounded-full pl-2 pr-1.5 py-1.5 shadow-lg">
-          <Link
-            href="/app/activity"
-            title={
+          <Tooltip
+            side="bottom"
+            content={
               unreadActivity > 0
                 ? `${unreadActivity} new notification${unreadActivity === 1 ? '' : 's'}`
                 : 'Notifications'
             }
-            aria-label={
-              unreadActivity > 0
-                ? `Notifications, ${unreadActivity} new notification${unreadActivity === 1 ? '' : 's'}`
-                : 'Notifications'
-            }
-            className="relative w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
           >
-            <Bell size={19} />
-            {unreadActivity > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold leading-4 text-center shadow-sm shadow-primary/40">
-                {unreadActivityLabel}
-              </span>
-            )}
-          </Link>
+            <Link
+              href="/app/activity"
+              aria-label={
+                unreadActivity > 0
+                  ? `Notifications, ${unreadActivity} new notification${unreadActivity === 1 ? '' : 's'}`
+                  : 'Notifications'
+              }
+              className="relative w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
+            >
+              <Bell size={19} />
+              {unreadActivity > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold leading-4 text-center shadow-sm shadow-primary/40">
+                  {unreadActivityLabel}
+                </span>
+              )}
+            </Link>
+          </Tooltip>
 
-          <Link
-            href="/app/messages"
-            title={
+          <Tooltip
+            side="bottom"
+            content={
               unreadMessages > 0
                 ? `${unreadMessages} unread message${unreadMessages === 1 ? '' : 's'}`
                 : 'Chat'
             }
-            aria-label={
-              unreadMessages > 0
-                ? `Chat, ${unreadMessages} unread message${unreadMessages === 1 ? '' : 's'}`
-                : 'Chat'
-            }
-            className="relative w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
           >
-            <MessageCircle size={19} />
-            {unreadMessages > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold leading-4 text-center shadow-sm shadow-primary/40">
-                {unreadMessagesLabel}
-              </span>
-            )}
-          </Link>
+            <Link
+              href="/app/messages"
+              aria-label={
+                unreadMessages > 0
+                  ? `Chat, ${unreadMessages} unread message${unreadMessages === 1 ? '' : 's'}`
+                  : 'Chat'
+              }
+              className="relative w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
+            >
+              <MessageCircle size={19} />
+              {unreadMessages > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-white text-[9px] font-bold leading-4 text-center shadow-sm shadow-primary/40">
+                  {unreadMessagesLabel}
+                </span>
+              )}
+            </Link>
+          </Tooltip>
 
           <ThemeToggle />
 
           {/* Upload replaced Settings here — Settings is still one click away in the
               sidebar footer and the account menu below, whereas uploading had no
               home outside a nav list. */}
-          <Link
-            href="/app/upload"
-            title="Upload"
-            aria-label="Upload"
-            className="w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
-          >
-            <Plus size={21} strokeWidth={2.5} />
-          </Link>
+          <Tooltip content="Upload" side="bottom">
+            <Link
+              href="/app/upload"
+              aria-label="Upload"
+              className="w-9 h-9 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition"
+            >
+              <Plus size={21} strokeWidth={2.5} />
+            </Link>
+          </Tooltip>
 
           {user ? (
             avatar

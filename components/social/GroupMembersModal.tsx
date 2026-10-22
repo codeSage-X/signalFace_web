@@ -7,6 +7,7 @@ import { usersApi, type FollowPerson } from '@/lib/api';
 import { useAuth, useToast } from '@/lib/stores';
 import { UserAvatar } from '@/components/UserAvatar';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { Tooltip } from '@/components/ui/tooltip';
 import { MAX_GROUP_ADMINS, type InterestGroup, useGroupActions } from '@/hooks/useGroups';
 
 export function GroupMembersModal({
@@ -89,7 +90,7 @@ export function GroupMembersModal({
                 return <li key={member.id} className="p-4 flex items-center gap-3">
                   <Link href={`/app/u/${member.username}`} onClick={onClose} className="flex min-w-0 flex-1 items-center gap-3">
                     <UserAvatar src={member.avatarUrl} name={member.displayName} size="sm" />
-                    <span className="min-w-0"><span className="flex items-center gap-1 font-semibold text-sm text-foreground truncate">{member.displayName}{member.creatorStatus === 'APPROVED' && <VerifiedBadge size={13} />}</span><span className="block text-xs text-muted-foreground truncate">@{member.username}{owner ? ' · Owner' : admin ? ' · Admin' : pendingAdmin ? ' · Invited as admin' : ''}</span></span>
+                    <span className="min-w-0"><span className="flex items-center gap-1 font-semibold text-sm text-foreground truncate">{member.displayName}{member.isVerified && <VerifiedBadge size={13} />}</span><span className="block text-xs text-muted-foreground truncate">@{member.username}{owner ? ' · Owner' : admin ? ' · Admin' : pendingAdmin ? ' · Invited as admin' : ''}</span></span>
                   </Link>
                   {canAssignAdmins && !owner && (
                     <button type="button" onClick={() => void toggleAdmin(member.id)} disabled={adminPending === member.id || (!admin && !pendingAdmin && group.adminIds.length + group.pendingAdminIds.length >= MAX_GROUP_ADMINS)} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-2 text-xs font-semibold disabled:opacity-40 ${admin || pendingAdmin ? 'bg-primary/10 text-primary' : 'glass-chip text-foreground'}`}>
@@ -97,7 +98,7 @@ export function GroupMembersModal({
                       {admin ? 'Remove admin' : pendingAdmin ? 'Cancel invite' : 'Invite as admin'}
                     </button>
                   )}
-                  {!mine && <Link href={`/app/messages?with=${encodeURIComponent(member.username)}`} onClick={onClose} title={`Message ${member.displayName}`} className="w-9 h-9 flex-shrink-0 rounded-full brand-gradient text-white flex items-center justify-center hover:brightness-110"><MessageCircle size={16} /></Link>}
+                  {!mine && <Tooltip content={`Message ${member.displayName}`} side="left" className="shrink-0"><Link href={`/app/messages?with=${encodeURIComponent(member.username)}`} onClick={onClose} aria-label={`Message ${member.displayName}`} className="w-9 h-9 flex-shrink-0 rounded-full brand-gradient text-white flex items-center justify-center hover:brightness-110"><MessageCircle size={16} /></Link></Tooltip>}
                 </li>;
               })}
             </ul>

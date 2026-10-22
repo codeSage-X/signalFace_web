@@ -294,7 +294,7 @@ const RealmCard = ({
       <div className="mt-3">
         <NextLink href={`/app/r/${realm.slug}`} className="flex items-center gap-1.5 min-w-0">
           <h3 className="font-bold text-foreground truncate hover:underline">{realm.name}</h3>
-          <BadgeCheck size={14} className="text-primary flex-shrink-0" />
+          {realm.verified && <BadgeCheck size={14} className="text-primary flex-shrink-0" />}
         </NextLink>
         <p className="text-xs text-muted-foreground">@{realm.slug}</p>
       </div>

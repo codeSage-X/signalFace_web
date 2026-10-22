@@ -213,6 +213,8 @@ export interface AuthResponse {
     displayName: string;
     role: string;
     creatorStatus: string;
+    /** Admin-granted; the only thing that shows the verified tick. */
+    isVerified?: boolean;
     pointsBalance: string;
     avatarUrl: string | null;
     emailVerified: boolean;
@@ -279,6 +281,8 @@ export interface UserProfile {
   websiteUrl: string | null;
   role: string;
   creatorStatus: string;
+  /** Admin-granted; the only thing that shows the verified tick. */
+  isVerified?: boolean;
   /** This user's own invite code. */
   referralCode: string;
   /** Topics this person wants more of. Drives feed ranking. */
@@ -408,6 +412,8 @@ export type MarketplaceListingStatus = 'ACTIVE' | 'RESERVED' | 'SOLD' | 'CANCELE
 export type MarketplaceShopType = 'PLAZA' | 'STORE' | 'SUPERMARKET';
 export type MarketplaceFulfillment = 'PAY_ON_DELIVERY' | 'PICKUP';
 export type MarketplaceOrderStatus = 'PENDING' | 'ACCEPTED' | 'COMPLETED' | 'CANCELED';
+export type MarketplacePaymentPlan = 'FULL' | 'INSTALLMENT';
+export type MarketplaceInstallmentFrequency = 'WEEKLY' | 'MONTHLY';
 export interface MarketplacePerson {
   id: string;
   username: string;
@@ -433,6 +439,9 @@ export interface MarketplaceOrderInput {
   quantity: number;
   fulfillment: MarketplaceFulfillment;
   note?: string;
+  paymentPlan?: MarketplacePaymentPlan;
+  installmentCount?: number;
+  installmentFrequency?: MarketplaceInstallmentFrequency;
 }
 
 export interface MarketplaceListing {
@@ -448,6 +457,9 @@ export interface MarketplaceListing {
   imageUrls: string[];
   status: MarketplaceListingStatus;
   stockQuantity: number;
+  // Pay small small terms; null when the seller only accepts full payment.
+  installmentMaxCount: number | null;
+  installmentDepositPercent: number | null;
   shop: MarketplaceShop | null;
   seller: { id: string; username: string; displayName: string; avatarUrl: string | null };
   isMine: boolean;
@@ -458,6 +470,7 @@ export interface MarketplaceListing {
     note: string | null;
     quantity: number;
     fulfillment: MarketplaceFulfillment;
+    paymentPlan: MarketplacePaymentPlan;
     unitPrice: string;
     createdAt: string;
     buyer: { id: string; username: string; displayName: string; avatarUrl: string | null };
@@ -473,10 +486,22 @@ export interface MarketplaceOrder {
   fulfillment: MarketplaceFulfillment;
   unitPrice: string;
   total: string;
+  paymentPlan: MarketplacePaymentPlan;
+  installment: MarketplaceInstallment | null;
   buyer: MarketplacePerson;
   note: string | null;
   createdAt: string;
   listing: MarketplaceListing;
+}
+
+export interface MarketplaceInstallment {
+  count: number;
+  frequency: MarketplaceInstallmentFrequency;
+  amountPaid: string;
+  balance: string;
+  // Due dates are null until the seller accepts the order.
+  schedule: Array<{ sequence: number; amount: string; dueDate: string | null; paid: boolean }>;
+  payments: Array<{ id: string; amount: string; note: string | null; createdAt: string }>;
 }
 
 export interface WalletHolding {
@@ -716,11 +741,12 @@ export const marketApi = {
   getShop: (id: string) => request<MarketplaceStorefront>(`/market/shops/${encodeURIComponent(id)}`),
   createShop: (body: { name: string; type: MarketplaceShopType; description: string; location: string }) =>
     request<MarketplaceStorefront>('/market/shops', { method: 'POST', body: JSON.stringify(body) }),
-  listShops: (params: { q?: string; shopType?: MarketplaceShopType | ''; cursor?: string | null } = {}) => {
+  listShops: (params: { q?: string; shopType?: MarketplaceShopType | ''; cursor?: string | null; excludeMine?: boolean } = {}) => {
     const qs = new URLSearchParams();
     if (params.q) qs.set('q', params.q);
     if (params.shopType) qs.set('shopType', params.shopType);
     if (params.cursor) qs.set('cursor', params.cursor);
+    if (params.excludeMine) qs.set('excludeMine', 'true');
     return request<Page<MarketplaceStorefront>>(`/market/shops?${qs}`);
   },
   getProduct: (id: string) => request<MarketplaceListing>(`/market/listings/${encodeURIComponent(id)}`),
@@ -731,6 +757,8 @@ export const marketApi = {
     shopType?: MarketplaceShopType | '';
     cursor?: string | null;
     limit?: number;
+    /** Leave out the viewer's own listings. */
+    excludeMine?: boolean;
   }) => {
     const qs = new URLSearchParams();
     if (params?.q) qs.set('q', params.q);
@@ -739,6 +767,7 @@ export const marketApi = {
     if (params?.shopType) qs.set('shopType', params.shopType);
     if (params?.cursor) qs.set('cursor', params.cursor);
     if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.excludeMine) qs.set('excludeMine', 'true');
     const query = qs.toString();
     return request<Page<MarketplaceListing>>(`/market/listings${query ? `?${query}` : ''}`);
   },
@@ -749,6 +778,12 @@ export const marketApi = {
     request<MarketplaceOrder>(`/market/orders/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   setStock: (id: string, stockQuantity: number) =>
     request<MarketplaceListing>(`/market/listings/${encodeURIComponent(id)}/stock`, { method: 'PATCH', body: JSON.stringify({ stockQuantity }) }),
+  setInstallments: (id: string, body: { installmentMaxCount: number | null; installmentDepositPercent?: number }) =>
+    request<MarketplaceListing>(`/market/listings/${encodeURIComponent(id)}/installments`, { method: 'PATCH', body: JSON.stringify(body) }),
+  recordPayment: (orderId: string, body: { amount: number; note?: string }) =>
+    request<MarketplaceOrder>(`/market/orders/${encodeURIComponent(orderId)}/payments`, { method: 'POST', body: JSON.stringify(body) }),
+  voidPayment: (orderId: string, paymentId: string) =>
+    request<MarketplaceOrder>(`/market/orders/${encodeURIComponent(orderId)}/payments/${encodeURIComponent(paymentId)}`, { method: 'DELETE' }),
   createProduct: (body: {
     title: string;
     description: string;
@@ -758,6 +793,8 @@ export const marketApi = {
     location: string;
     negotiable: boolean;
     stockQuantity: number;
+    installmentMaxCount?: number;
+    installmentDepositPercent?: number;
     images: File[];
   }) => {
     const form = new FormData();
@@ -769,6 +806,10 @@ export const marketApi = {
     form.append('location', body.location);
     form.append('negotiable', String(body.negotiable));
     form.append('stockQuantity', String(body.stockQuantity));
+    if (body.installmentMaxCount) {
+      form.append('installmentMaxCount', String(body.installmentMaxCount));
+      form.append('installmentDepositPercent', String(body.installmentDepositPercent ?? 0));
+    }
     body.images.forEach((image) => form.append('images', image));
     return requestForm<MarketplaceListing>('/market/listings', form, { method: 'POST' });
   },
@@ -950,6 +991,8 @@ export interface FollowPerson {
   displayName: string;
   avatarUrl: string | null;
   creatorStatus: string;
+  /** Admin-granted; the only thing that shows the verified tick. */
+  isVerified?: boolean;
   followersCount: number;
   /** Whether the viewer follows them — always true in the `following` list. */
   isFollowedByMe: boolean;
@@ -1032,6 +1075,8 @@ export interface PostAuthor {
   avatarUrl: string | null;
   role: string;
   creatorStatus: string;
+  /** Admin-granted; the only thing that shows the verified tick. */
+  isVerified?: boolean;
   followedByMe?: boolean;
 }
 
@@ -1042,6 +1087,8 @@ export interface PostRealm {
   slug: string;
   iconUrl: string | null;
   category: RealmCategory;
+  /** The page's owner is verified. */
+  verified?: boolean;
   followedByMe: boolean;
 }
 
@@ -1116,6 +1163,8 @@ export interface PublicProfile {
   websiteUrl: string | null;
   role: string;
   creatorStatus: string;
+  /** Admin-granted; the only thing that shows the verified tick. */
+  isVerified?: boolean;
   createdAt: string;
   followingCount: number;
   followersCount: number;
@@ -1326,7 +1375,10 @@ export interface Realm {
     username: string;
     displayName: string;
     avatarUrl: string | null;
+    isVerified?: boolean;
   };
+  /** The page's owner is verified; shows the verified tick on the page. */
+  verified?: boolean;
   isMine: boolean;
   canManage: boolean;
   isOwner: boolean;
@@ -1343,6 +1395,8 @@ export interface RealmAdmin {
   displayName: string;
   avatarUrl: string | null;
   creatorStatus: string;
+  /** Admin-granted; the only thing that shows the verified tick. */
+  isVerified?: boolean;
   assignedAt: string;
   status: 'PENDING' | 'ACCEPTED';
 }
@@ -1410,12 +1464,14 @@ function realmQuery(params: {
   category?: RealmCategory | null;
   cursor?: string | null;
   limit?: number;
+  excludeMine?: boolean;
 }) {
   const search = new URLSearchParams();
   if (params.q?.trim()) search.set('q', params.q.trim());
   if (params.category) search.set('category', params.category);
   if (params.cursor) search.set('cursor', params.cursor);
   if (params.limit) search.set('limit', String(params.limit));
+  if (params.excludeMine) search.set('excludeMine', 'true');
   const qs = search.toString();
   return qs ? `?${qs}` : '';
 }
@@ -1473,6 +1529,8 @@ export const realmsApi = {
     category?: RealmCategory | null;
     cursor?: string | null;
     limit?: number;
+    /** Leave out realms the viewer owns or manages. */
+    excludeMine?: boolean;
   } = {}) => request<Page<Realm>>(`/realms${realmQuery(params)}`),
   getBySlug: (slug: string) => request<Realm>(`/realms/${encodeURIComponent(slug)}`),
   posts: (slug: string, cursor?: string | null, limit?: number) =>

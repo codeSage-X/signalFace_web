@@ -271,7 +271,7 @@ function FriendListItem({
       <Link href={`/app/u/${person.username}`} className="flex-1 min-w-0">
         <p className="font-semibold text-card-foreground truncate flex items-center gap-1.5">
           <span className="truncate">{person.displayName}</span>
-          {person.creatorStatus === 'APPROVED' && <VerifiedBadge size={16} />}
+          {person.isVerified && <VerifiedBadge size={16} />}
         </p>
         <p className="text-sm text-muted-foreground truncate">@{person.username}</p>
         <p className="text-xs text-muted-foreground">
@@ -323,7 +323,7 @@ function FriendCard({
         <Link href={`/app/u/${person.username}`} className="block">
           <p className="font-semibold text-card-foreground truncate flex items-center gap-1 text-sm">
             <span className="truncate">{person.displayName}</span>
-            {person.creatorStatus === 'APPROVED' && <VerifiedBadge size={14} />}
+            {person.isVerified && <VerifiedBadge size={14} />}
           </p>
           <p className="text-xs text-muted-foreground truncate">@{person.username}</p>
         </Link>

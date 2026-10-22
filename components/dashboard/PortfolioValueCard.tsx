@@ -6,6 +6,8 @@ import { ChevronDown, Eye, EyeOff } from 'lucide-react';
 import { DASH } from './theme';
 import type { SeriesPoint } from '@/lib/series';
 import { formatUsd } from '@/lib/utils';
+// Aliased: recharts' Tooltip is already imported above.
+import { Tooltip as HintTooltip } from '@/components/ui/tooltip';
 
 export const RANGES = ['24H', '7D', '30D', 'ALL'] as const;
 export type Range = (typeof RANGES)[number];
@@ -72,14 +74,16 @@ export const PortfolioValueCard = ({
               {label}
             </span>
             {hint && (
-              <span
-                title={hint}
-                aria-label={hint}
-                className="flex items-center justify-center w-4 h-4 rounded-full border text-[9px] font-bold cursor-help"
-                style={{ borderColor: DASH.chipBorder, color: DASH.inkMuted }}
-              >
-                i
-              </span>
+              <HintTooltip content={hint}>
+                <span
+                  tabIndex={0}
+                  aria-label={hint}
+                  className="flex items-center justify-center w-4 h-4 rounded-full border text-[9px] font-bold cursor-help"
+                  style={{ borderColor: DASH.chipBorder, color: DASH.inkMuted }}
+                >
+                  i
+                </span>
+              </HintTooltip>
             )}
             <button
               onClick={() => setHidden((h) => !h)}

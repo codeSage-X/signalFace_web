@@ -59,6 +59,7 @@ import { FollowersFollowingModal } from '@/components/social/FollowersFollowingM
 import { ModeratedMedia } from '@/components/social/ModeratedMedia';
 import { UserAvatar } from '@/components/UserAvatar';
 import { usd } from '@/components/dashboard/SignalMarketCard';
+import { Tooltip } from '@/components/ui/tooltip';
 
 const MAX_PINNED_POSTS = 3;
 const PAGE_SIZE = 12;
@@ -656,13 +657,15 @@ export default function ProfilePage() {
               >
                 <Share2 size={14} className="text-foreground" />
               </button>
-              <NextLink
-                href="/app/groups?create=1"
-                title="Create a group"
-                className="w-8 h-8 flex items-center justify-center rounded-full glass-chip hover:brightness-125 transition"
-              >
-                <UsersRound size={14} className="text-foreground" />
-              </NextLink>
+              <Tooltip content="Create a group">
+                <NextLink
+                  href="/app/groups?create=1"
+                  aria-label="Create a group"
+                  className="w-8 h-8 flex items-center justify-center rounded-full glass-chip hover:brightness-125 transition"
+                >
+                  <UsersRound size={14} className="text-foreground" />
+                </NextLink>
+              </Tooltip>
 
               {/* More actions */}
               <div className="relative" ref={moreMenuRef}>
@@ -1235,7 +1238,9 @@ function PostGridCard({
       <div className="absolute z-20 bottom-2 inset-x-2 flex items-center justify-between gap-1">
         <div className="flex min-w-0 items-center gap-1 text-white text-xs drop-shadow">
           {kind === 'video' ? <Play size={10} fill="white" className="shrink-0" /> : <Eye size={10} className="shrink-0" />}
-          <span className="truncate" title={viewCount.toLocaleString()}>{viewCount.toLocaleString()}</span>
+          <Tooltip content={viewCount.toLocaleString()} className="min-w-0">
+            <span className="truncate">{viewCount.toLocaleString()}</span>
+          </Tooltip>
         </div>
 
         {variant === 'favorite' && (
@@ -1248,37 +1253,41 @@ function PostGridCard({
           <div className="flex shrink-0 items-center gap-1">
             {/* These sit inside the card, which now opens the viewer — without
                 stopping the click, pinning would also open the post. */}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onTogglePin?.(post); }}
-              title={pinned ? 'Unpin' : 'Pin to top'}
-              aria-label={pinned ? 'Unpin post' : 'Pin post to top'}
-              className="w-11 h-11 [@media(hover:hover)_and_(pointer:fine)]:w-7 [@media(hover:hover)_and_(pointer:fine)]:h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black focus-visible:outline-2 focus-visible:outline-white"
-            >
-              {pinned ? <PinOff size={12} /> : <Pin size={12} />}
-            </button>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onDelete?.(post); }}
-              title="Delete post"
-              aria-label="Delete post"
-              className="w-11 h-11 [@media(hover:hover)_and_(pointer:fine)]:w-7 [@media(hover:hover)_and_(pointer:fine)]:h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-white"
-            >
-              <Trash2 size={12} />
-            </button>
+            <Tooltip content={pinned ? 'Unpin' : 'Pin to top'}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onTogglePin?.(post); }}
+                aria-label={pinned ? 'Unpin post' : 'Pin post to top'}
+                className="w-11 h-11 [@media(hover:hover)_and_(pointer:fine)]:w-7 [@media(hover:hover)_and_(pointer:fine)]:h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black focus-visible:outline-2 focus-visible:outline-white"
+              >
+                {pinned ? <PinOff size={12} /> : <Pin size={12} />}
+              </button>
+            </Tooltip>
+            <Tooltip content="Delete post">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDelete?.(post); }}
+                aria-label="Delete post"
+                className="w-11 h-11 [@media(hover:hover)_and_(pointer:fine)]:w-7 [@media(hover:hover)_and_(pointer:fine)]:h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-white"
+              >
+                <Trash2 size={12} />
+              </button>
+            </Tooltip>
           </div>
         )}
       </div>
 
       {variant === 'favorite' && (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onRemoveFavorite?.(post); }}
-          title="Remove from favorites"
-          className="absolute top-2 left-2 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <BookmarkX size={12} />
-        </button>
+        <Tooltip content="Remove from favorites" side="right" className="absolute top-2 left-2">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onRemoveFavorite?.(post); }}
+            aria-label="Remove from favorites"
+            className="w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <BookmarkX size={12} />
+          </button>
+        </Tooltip>
       )}
     </div>
   );

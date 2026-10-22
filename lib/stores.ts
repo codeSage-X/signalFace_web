@@ -91,6 +91,8 @@ export interface User {
   websiteUrl?: string | null;
   role: string;
   creatorStatus: string;
+  /** Admin-granted; the only thing that shows the verified tick. */
+  isVerified?: boolean;
   /** This user's own invite code, used to build their referral link. */
   referralCode?: string;
   /** Topics driving this person's feed ranking. */

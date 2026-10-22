@@ -407,7 +407,7 @@ export default function PublicRealmPage() {
 
           <div className="mt-4 flex items-center justify-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight sm:text-[1.7rem]">{realm.name}</h1>
-            <VerifiedBadge size={19} />
+            {realm.verified && <VerifiedBadge size={19} />}
           </div>
           <button
             type="button"

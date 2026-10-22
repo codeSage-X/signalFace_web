@@ -133,7 +133,7 @@ export function RealmFollowersModal({ slug, onClose }: RealmFollowersModalProps)
                         <p className="font-semibold text-foreground truncate">
                           {person.displayName}
                         </p>
-                        {person.creatorStatus === 'APPROVED' && (
+                        {person.isVerified && (
                           <VerifiedBadge size={14} />
                         )}
                       </div>

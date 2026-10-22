@@ -5,6 +5,7 @@ import { Camera, Check, Loader2, X } from 'lucide-react';
 import { marketApi, type MarketplaceListing, type MarketplaceStorefront, type MarketplaceCategory, type MarketplaceCondition } from '@/lib/api';
 import { useToast } from '@/lib/stores';
 import { MallDialog } from './MallDialog';
+import { InstallmentFields, installmentSettings } from './InstallmentFields';
 import { CATEGORIES, CONDITIONS, shopTypeLabel } from './market-utils';
 
 export function SellModal({ shop, onClose, onCreated }: { shop: MarketplaceStorefront; onClose: () => void; onCreated: (listing: MarketplaceListing) => void }) {
@@ -28,6 +29,8 @@ export function SellModal({ shop, onClose, onCreated }: { shop: MarketplaceStore
         category: form.get('category') as MarketplaceCategory, condition: form.get('condition') as MarketplaceCondition,
         price: Number(form.get('price')), location: String(form.get('location') ?? ''),
         negotiable: form.get('negotiable') === 'on', stockQuantity: Number(form.get('stockQuantity')), images,
+        installmentMaxCount: installmentSettings(form).installmentMaxCount ?? undefined,
+        installmentDepositPercent: installmentSettings(form).installmentDepositPercent,
       });
       onCreated(listing); addToast({ message: 'Your product is now live.', type: 'success', duration: 3500 });
     } catch (error) { setError(error instanceof Error ? error.message : 'Could not publish the product.'); }
@@ -52,6 +55,7 @@ export function SellModal({ shop, onClose, onCreated }: { shop: MarketplaceStore
             <label className="text-sm font-semibold sm:col-span-2">Description<textarea name="description" required minLength={10} maxLength={3000} rows={5} placeholder="Describe the item, its age, features, and anything a buyer should know." className="glass-input mt-2 w-full resize-none rounded-lg px-3 py-3 font-normal" /></label>
           </div>
           <label className="flex items-center gap-3 text-sm"><input name="negotiable" type="checkbox" className="h-4 w-4 accent-primary" /><span>Price is negotiable</span></label>
+          <InstallmentFields />
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <button type="submit" disabled={busy} className="brand-gradient flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 font-semibold text-white disabled:opacity-60">{busy ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} Publish listing</button>
         </fieldset></form>

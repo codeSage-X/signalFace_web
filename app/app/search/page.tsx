@@ -415,7 +415,7 @@ function UserRow({ person }: { person: FollowPerson }) {
             <span className="text-sm font-semibold text-foreground truncate">
               {person.displayName}
             </span>
-            {person.creatorStatus === 'APPROVED' && <VerifiedBadge size={14} />}
+            {person.isVerified && <VerifiedBadge size={14} />}
           </span>
           <span className="block text-xs text-muted-foreground truncate">
             @{person.username} · {fmt(person.followersCount)} followers

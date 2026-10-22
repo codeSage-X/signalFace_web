@@ -1,4 +1,4 @@
-import type { MarketplaceCategory, MarketplaceCondition, MarketplaceShopType } from "@/lib/api";
+import type { MarketplaceCategory, MarketplaceCondition, MarketplaceInstallmentFrequency, MarketplaceShopType } from "@/lib/api";
 
 export const CATEGORIES: Array<{ value: MarketplaceCategory | ''; label: string }> = [
   { value: '', label: 'All listings' },
@@ -37,5 +37,22 @@ export const SHOP_TYPES: Array<{ value: MarketplaceShopType; label: string; desc
   { value: 'SUPERMARKET', label: 'Supermarket', description: 'Groceries, essentials, and everyday goods.' },
 ];
 export const shopTypeLabel = (type: MarketplaceShopType) => SHOP_TYPES.find((item) => item.value === type)?.label ?? type;
-export const fulfillmentLabel = (value: string) => value === 'PAY_ON_DELIVERY' ? 'Pay on delivery' : 'Pickup';
+// Pay small small orders are handed over only once fully paid, so delivery is not "pay on delivery".
+export const fulfillmentLabel = (value: string, plan = 'FULL') =>
+  plan === 'INSTALLMENT' ? (value === 'PAY_ON_DELIVERY' ? 'Delivery when fully paid' : 'Pickup when fully paid')
+    : value === 'PAY_ON_DELIVERY' ? 'Pay on delivery' : 'Pickup';
 export const messageHref = (username: string) => `/app/messages?with=${encodeURIComponent(username)}`;
+
+export const PAY_SMALL_SMALL = 'Pay small small';
+export const frequencyLabel = (value: MarketplaceInstallmentFrequency, count = 1) =>
+  value === 'WEEKLY' ? (count === 1 ? 'week' : 'weeks') : (count === 1 ? 'month' : 'months');
+
+// Mirrors the API schedule in kobo: the deposit is the larger of an equal share
+// and the seller's minimum, the rest splits equally, and the last payment takes the remainder.
+export function installmentPreview(total: number, count: number, depositPercent: number) {
+  const totalKobo = Math.round(total * 100);
+  const deposit = Math.max(Math.ceil(totalKobo / count), Math.ceil((totalKobo * depositPercent) / 100));
+  const each = Math.floor((totalKobo - deposit) / (count - 1));
+  const last = totalKobo - deposit - each * (count - 2);
+  return { deposit: deposit / 100, each: each / 100, last: last / 100 };
+}

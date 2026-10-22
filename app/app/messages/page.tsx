@@ -53,6 +53,7 @@ function MessagesInner() {
           displayName: profile.displayName,
           avatarUrl: profile.avatarUrl,
           creatorStatus: profile.creatorStatus,
+          isVerified: profile.isVerified,
           followersCount: profile.followersCount,
           isFollowedByMe: profile.isFollowedByMe,
         });

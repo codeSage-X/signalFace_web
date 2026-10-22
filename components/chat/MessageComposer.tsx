@@ -3,6 +3,7 @@
 import { FormEvent,useEffect, useRef, useState } from 'react';
 import { ImagePlus, Laugh, Loader2, Send, ShieldAlert, Sticker, Video } from 'lucide-react';
 import { ApiError, chatMediaApi, type ChatMediaUpload } from '@/lib/api';
+import { Tooltip } from '@/components/ui/tooltip';
 
 const EMOJIS = ['😀', '😂', '😍', '🥰', '😎', '😭', '👏', '🙌', '❤️', '🔥', '🎉', '👍'];
 const MAX_INPUT_HEIGHT_PX = 120;
@@ -108,16 +109,18 @@ useEffect(() => {
         <input ref={videoInputRef} type="file" accept="video/mp4,video/webm,video/quicktime" className="hidden" onChange={(event) => void attach(event.target.files?.[0])} />
         <input ref={gifInputRef} type="file" accept="image/gif" className="hidden" onChange={(event) => void attach(event.target.files?.[0])} />
         <div className="flex items-center gap-1">
-          <button type="button" title="Share photo" aria-label="Share photo" onClick={() => mediaInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground" disabled={uploading}><ImagePlus size={19} /></button>
-          <button type="button" title="Share video" aria-label="Share video" onClick={() => videoInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground" disabled={uploading}><Video size={19} /></button>
-          <button type="button" title="Share GIF" aria-label="Share GIF" onClick={() => gifInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground" disabled={uploading}><Sticker size={19} /></button>
-          <button type="button" title="Add emoji" aria-label="Add emoji" onClick={() => setEmojiOpen((open) => !open)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground"><Laugh size={19} /></button>
+          <Tooltip content="Share photo"><button type="button" aria-label="Share photo" onClick={() => mediaInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground" disabled={uploading}><ImagePlus size={19} /></button></Tooltip>
+          <Tooltip content="Share video"><button type="button" aria-label="Share video" onClick={() => videoInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground" disabled={uploading}><Video size={19} /></button></Tooltip>
+          <Tooltip content="Share GIF"><button type="button" aria-label="Share GIF" onClick={() => gifInputRef.current?.click()} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground" disabled={uploading}><Sticker size={19} /></button></Tooltip>
+          <Tooltip content="Add emoji"><button type="button" aria-label="Add emoji" onClick={() => setEmojiOpen((open) => !open)} className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:text-foreground"><Laugh size={19} /></button></Tooltip>
         </div>
         <div className="grid w-full min-w-0 grid-cols-[minmax(0,4fr)_minmax(3rem,1fr)] items-end gap-2 sm:flex sm:flex-1">
           <textarea ref={inputRef} rows={1} value={draft} onChange={(event) => { setDraft(event.target.value); event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, MAX_INPUT_HEIGHT_PX)}px`; }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit(event); } }} placeholder={placeholder} maxLength={4000} className="w-full min-w-0 resize-none px-3.5 py-2.5 rounded-lg glass-input text-sm text-foreground placeholder-muted-foreground sm:flex-1" style={{ maxHeight: MAX_INPUT_HEIGHT_PX }} />
-          <button type="submit" disabled={!draft.trim() || sending || uploading} title="Send" aria-label="Send" className="h-10 w-full rounded-lg brand-gradient flex items-center justify-center text-white disabled:opacity-40 sm:w-10 sm:flex-shrink-0 sm:rounded-full">
-            {sending || uploading ? <Loader2 size={16} className="animate-spin" /> : <Send size={17} />}
-          </button>
+          <Tooltip content="Send" className="w-full sm:w-10 sm:shrink-0">
+            <button type="submit" disabled={!draft.trim() || sending || uploading} aria-label="Send" className="h-10 w-full rounded-lg brand-gradient flex items-center justify-center text-white disabled:opacity-40 sm:w-10 sm:flex-shrink-0 sm:rounded-full">
+              {sending || uploading ? <Loader2 size={16} className="animate-spin" /> : <Send size={17} />}
+            </button>
+          </Tooltip>
         </div>
       </form>
     </div>

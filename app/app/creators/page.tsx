@@ -1,6 +1,7 @@
 'use client';
 
 import { UserAvatar } from '@/components/UserAvatar';
+import { Tooltip } from '@/components/ui/tooltip';
 
 /**
  * Top Creators - Discover creators and their realms.
@@ -57,7 +58,8 @@ export default function CreatorsPage() {
     setError(null);
 
     realmsApi
-      .list({ q: query, category, limit: PAGE_SIZE })
+      // Your own pages (owned or managed) never appear in the directory.
+      .list({ q: query, category, limit: PAGE_SIZE, excludeMine: true })
       .then((page) => {
         if (cancelled) return;
         setRealms(page.items);
@@ -85,6 +87,7 @@ export default function CreatorsPage() {
         category,
         cursor: nextCursor,
         limit: PAGE_SIZE,
+        excludeMine: true,
       });
       setRealms((prev) => {
         const seen = new Set(prev.map((r) => r.id));
@@ -310,10 +313,12 @@ const RealmCard = ({
       <h3 className="text-2xl font-bold text-foreground truncate">
         {realm.name}
       </h3>
-      <BadgeCheck
-        size={23}
-        className="text-pink-500 fill-pink-500 flex-shrink-0"
-      />
+      {realm.verified && (
+        <BadgeCheck
+          size={23}
+          className="text-pink-500 fill-pink-500 flex-shrink-0"
+        />
+      )}
     </NextLink>
 
     {/* Category and followers */}
@@ -369,14 +374,15 @@ const RealmCard = ({
         Buy Signal
       </NextLink>
 
-      <button
-        type="button"
-        aria-label={`Add ${realm.name} to watchlist`}
-        title="Add to watchlist"
-        className="rounded-xl border border-pink-500/60 text-pink-500 hover:bg-pink-500/10 transition flex items-center justify-center"
-      >
-        <Star size={20} />
-      </button>
+      <Tooltip content="Add to watchlist" className="flex">
+        <button
+          type="button"
+          aria-label={`Add ${realm.name} to watchlist`}
+          className="flex-1 rounded-xl border border-pink-500/60 text-pink-500 hover:bg-pink-500/10 transition flex items-center justify-center"
+        >
+          <Star size={20} />
+        </button>
+      </Tooltip>
     </div>
   </div>
 );

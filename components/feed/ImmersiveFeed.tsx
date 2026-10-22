@@ -24,6 +24,7 @@ import {
 import { useAuth, useToast, useVideoSound } from '@/lib/stores';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { Tooltip } from '@/components/ui/tooltip';
 import { ModeratedMedia } from '@/components/social/ModeratedMedia';
 import { PostShareModal } from '@/components/social/PostShareModal';
 import { shareablePost } from '@/lib/post-sharing';
@@ -88,30 +89,31 @@ function ActionBtn({
   className?: string;
 }) {
   return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      aria-expanded={expanded}
-      title={label}
-      className={`flex flex-col items-center gap-1 group text-white lg:text-foreground active:scale-90 transition-transform focus-visible:outline-none ${className}`}
-    >
-      {/* Brand-pink ring so the chip holds its edge on bright frames, where a
-          white glass chip on a white background simply disappeared. The focus
-          ring is drawn on the circle rather than as a square browser outline. */}
-      <div className={`w-11 h-11 rounded-full glass-chip ${RAIL_RING} flex items-center justify-center group-hover:brightness-125 group-focus-visible:ring-4 transition`}>
-        {/* Icons draw with currentColor, so this one class turns every glyph
-            pink — outlines, the filled bookmark, and the ellipsis/✕. States
-            with their own colour (liked heart, green repost) still win. */}
-        <span className="flex text-primary">
-          {icon}
-        </span>
-      </div>
-      {count && (
-        <span className="text-xs font-semibold [text-shadow:0_1px_3px_rgba(0,0,0,0.7)] lg:[text-shadow:none]">
-          {count}
-        </span>
-      )}
-    </button>
+    <Tooltip content={label} side="left">
+      <button
+        onClick={onClick}
+        aria-label={label}
+        aria-expanded={expanded}
+        className={`flex flex-col items-center gap-1 group text-white lg:text-foreground active:scale-90 transition-transform focus-visible:outline-none ${className}`}
+      >
+        {/* Brand-pink ring so the chip holds its edge on bright frames, where a
+            white glass chip on a white background simply disappeared. The focus
+            ring is drawn on the circle rather than as a square browser outline. */}
+        <div className={`w-11 h-11 rounded-full glass-chip ${RAIL_RING} flex items-center justify-center group-hover:brightness-125 group-focus-visible:ring-4 transition`}>
+          {/* Icons draw with currentColor, so this one class turns every glyph
+              pink — outlines, the filled bookmark, and the ellipsis/✕. States
+              with their own colour (liked heart, green repost) still win. */}
+          <span className="flex text-primary">
+            {icon}
+          </span>
+        </div>
+        {count && (
+          <span className="text-xs font-semibold [text-shadow:0_1px_3px_rgba(0,0,0,0.7)] lg:[text-shadow:none]">
+            {count}
+          </span>
+        )}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -162,36 +164,42 @@ function ActionColumn({
     <div className="flex flex-col items-center gap-4 pb-4 flex-shrink-0">
       {/* Avatar opens the profile behind the post; the badge follows it */}
       <div className="relative mb-2">
-        <Link
-          href={href}
-          title={`View @${handle}`}
-          className={`block w-12 h-12 bg-black dark:bg-white flex items-center justify-center text-white font-bold text-xs ${RAIL_RING} overflow-hidden hover:brightness-110 transition ${
-            // Square-ish for a page, round for a person — the same visual
-            // grammar Facebook and Instagram use.
-            realm ? 'rounded-xl' : 'rounded-full'
-          }`}
-        >
-          <UserAvatar src={imageUrl} name={realm ? realm.name : post.author.displayName} fill ring={false} />
-        </Link>
+        {/* `flex` wrapper: an inline one would add baseline space under the avatar. */}
+        <Tooltip content={`View @${handle}`} side="left" className="flex">
+          <Link
+            href={href}
+            aria-label={`View @${handle}`}
+            className={`block w-12 h-12 bg-black dark:bg-white flex items-center justify-center text-white font-bold text-xs ${RAIL_RING} overflow-hidden hover:brightness-110 transition ${
+              // Square-ish for a page, round for a person — the same visual
+              // grammar Facebook and Instagram use.
+              realm ? 'rounded-xl' : 'rounded-full'
+            }`}
+          >
+            <UserAvatar src={imageUrl} name={realm ? realm.name : post.author.displayName} fill ring={false} />
+          </Link>
+        </Tooltip>
 
         {/* Hidden on your own posts — following yourself isn't a thing. */}
         {!post.isMine && (
-          <button
-            onClick={onToggleFollow}
-            disabled={followPending}
-            title={isFollowed ? 'Unfollow' : 'Follow'}
-            className={`absolute -bottom-2 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full flex items-center justify-center shadow transition disabled:opacity-70 ${
-              isFollowed ? 'bg-white' : 'brand-gradient hover:brightness-110'
-            }`}
-          >
-            {followPending ? (
-              <Loader2 size={10} className="text-white animate-spin" />
-            ) : isFollowed ? (
-              <Check size={11} className="text-primary" strokeWidth={3} />
-            ) : (
-              <Plus size={11} className="text-white" strokeWidth={3} />
-            )}
-          </button>
+          // Positioning lives on the tooltip wrapper, which is now the child of the `relative` box.
+          <Tooltip content={isFollowed ? 'Unfollow' : 'Follow'} side="left" className="absolute -bottom-2 left-1/2 -translate-x-1/2">
+            <button
+              onClick={onToggleFollow}
+              disabled={followPending}
+              aria-label={isFollowed ? 'Unfollow' : 'Follow'}
+              className={`w-5 h-5 rounded-full flex items-center justify-center shadow transition disabled:opacity-70 ${
+                isFollowed ? 'bg-white' : 'brand-gradient hover:brightness-110'
+              }`}
+            >
+              {followPending ? (
+                <Loader2 size={10} className="text-white animate-spin" />
+              ) : isFollowed ? (
+                <Check size={11} className="text-primary" strokeWidth={3} />
+              ) : (
+                <Plus size={11} className="text-white" strokeWidth={3} />
+              )}
+            </button>
+          </Tooltip>
         )}
       </div>
 
@@ -529,17 +537,23 @@ function MuteButton() {
   const toggleMuted = useVideoSound((s) => s.toggleMuted);
 
   return (
-    <button
-      onClick={(e) => { e.stopPropagation(); toggleMuted(); }}
-      aria-label={muted ? 'Unmute' : 'Mute'}
-      title={muted ? 'Unmute' : 'Mute'}
-      className="absolute bottom-24 left-4 lg:bottom-auto lg:left-auto lg:top-4 lg:right-4 z-30 w-10 h-10 rounded-full brand-gradient ring-2 ring-white/80 shadow-lg shadow-black/40 flex items-center justify-center hover:brightness-110 active:scale-90 transition"
+    // Positioning sits on the tooltip wrapper so it stays the card's direct child.
+    <Tooltip
+      content={muted ? 'Unmute' : 'Mute'}
+      side="left"
+      className="absolute bottom-24 left-4 lg:bottom-auto lg:left-auto lg:top-4 lg:right-4 z-30"
     >
-      {muted
-        ? <VolumeX size={18} className="text-white" strokeWidth={2.5} />
-        : <Volume2 size={18} className="text-white" strokeWidth={2.5} />
-      }
-    </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); toggleMuted(); }}
+        aria-label={muted ? 'Unmute' : 'Mute'}
+        className="w-10 h-10 rounded-full brand-gradient ring-2 ring-white/80 shadow-lg shadow-black/40 flex items-center justify-center hover:brightness-110 active:scale-90 transition"
+      >
+        {muted
+          ? <VolumeX size={18} className="text-white" strokeWidth={2.5} />
+          : <Volume2 size={18} className="text-white" strokeWidth={2.5} />
+        }
+      </button>
+    </Tooltip>
   );
 }
 
@@ -719,7 +733,7 @@ function PostHeader({ post, reserveRight = false }: { post: FeedPost; reserveRig
             >
               {name}
             </Link>
-            {!post.realm && post.author.creatorStatus === 'APPROVED' && (
+            {(post.realm ? post.realm.verified : post.author.isVerified) && (
               <VerifiedBadge size={16} />
             )}
             {post.realm && (

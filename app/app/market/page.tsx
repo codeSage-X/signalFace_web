@@ -17,7 +17,7 @@ import { ProductDetail } from '@/components/market/ProductDetail';
 import { SellModal } from '@/components/market/SellModal';
 import { ShopRegistration } from '@/components/market/ShopRegistration';
 import { OrderCard } from '@/components/market/OrderCard';
-import { CATEGORIES, SHOP_TYPES, messageHref, money, shopTypeLabel } from '@/components/market/market-utils';
+import { CATEGORIES, PAY_SMALL_SMALL, SHOP_TYPES, messageHref, money, shopTypeLabel } from '@/components/market/market-utils';
 const VIEWS = [
   { value: 'browse', label: 'Items' }, { value: 'shops', label: 'Shops' },
   { value: 'orders', label: 'My orders' }, { value: 'selling', label: 'My shop' },
@@ -66,12 +66,13 @@ function MarketPageInner() {
 
   const fetchListings = useCallback((cursor?: string) => {
     if (view !== 'browse' && !shopId) return Promise.resolve({ items: [], nextCursor: null });
-    return marketApi.listProducts({ q: submittedQuery, category, shopType: shopId ? '' : shopType, shopId: shopId ?? undefined, limit: 30, cursor });
+    // Your own items only appear under My shop (or when you open your own storefront).
+    return marketApi.listProducts({ q: submittedQuery, category, shopType: shopId ? '' : shopType, shopId: shopId ?? undefined, limit: 30, cursor, excludeMine: !shopId });
   }, [submittedQuery, category, shopType, shopId, view, revision, user?.id]);
   const products = useMarketplacePage(fetchListings);
   const fetchShops = useCallback((cursor?: string) => {
     if (view !== 'shops' || shopId) return Promise.resolve({ items: [], nextCursor: null });
-    return marketApi.listShops({ q: submittedQuery, shopType, cursor });
+    return marketApi.listShops({ q: submittedQuery, shopType, cursor, excludeMine: true });
   }, [view, shopId, submittedQuery, shopType, revision, user?.id]);
   const shops = useMarketplacePage(fetchShops);
 
@@ -180,12 +181,31 @@ function MarketPageInner() {
   }
   async function updateOrder(id: string, status: Exclude<MarketplaceOrderStatus, 'PENDING'>) {
     if (actionPending.current) return;
+    const paid = Number([...orders, ...incoming].find((order) => order.id === id)?.installment?.amountPaid ?? 0);
     if (status === 'COMPLETED' && !window.confirm('Confirm that this order has been handed over and payment is settled?')) return;
-    if (status === 'CANCELED' && !window.confirm('Cancel this order and return its reserved items to available stock?')) return;
+    if (status === 'CANCELED' && !window.confirm(paid > 0
+      ? `The buyer has paid ${money(paid)} towards this order. Cancel it, return the items to stock, and arrange a refund with the buyer in Messenger?`
+      : 'Cancel this order and return its reserved items to available stock?')) return;
     actionPending.current = true; setBusy(true);
     try { await marketApi.setOrderStatus(id, status); refresh(); }
     catch (err) { toastError(err); }
     finally { actionPending.current = false; setBusy(false); }
+  }
+  async function changePayment(id: string, change: () => Promise<MarketplaceOrder>) {
+    if (actionPending.current) return false;
+    actionPending.current = true; setBusy(true);
+    try {
+      const updated = await change();
+      setIncoming((current) => current.map((order) => order.id === id ? updated : order));
+      return true;
+    } catch (err) { toastError(err); return false; }
+    finally { actionPending.current = false; setBusy(false); }
+  }
+  const recordPayment = (id: string, amount: number, note: string) =>
+    changePayment(id, () => marketApi.recordPayment(id, { amount, ...(note ? { note } : {}) }));
+  function voidPayment(id: string, paymentId: string) {
+    if (!window.confirm('Undo this payment? Use this only for a payment recorded by mistake.')) return;
+    void changePayment(id, () => marketApi.voidPayment(id, paymentId));
   }
   const isCatalog = !!shopId || view === 'browse' || view === 'shops';
   const catalog = view === 'shops' && !shopId ? shops : products;
@@ -229,13 +249,13 @@ function MarketPageInner() {
       </>}
       {!isCatalog && (!isAuthenticated ? <button onClick={() => setAuthModalOpen(true)} className="mt-6 rounded-lg border border-primary p-4 text-primary">Sign in to view your Marketplace account</button> : activityLoading ? <Loading /> : activityError ? <ErrorNotice message={activityError} onRetry={refresh} /> : <div className="mt-6 space-y-8">
         <div className="flex justify-end"><button type="button" onClick={refresh} disabled={busy} className="text-sm font-semibold text-primary disabled:opacity-50">Refresh activity</button></div>
-        {view === 'orders' ? <section><h2 className="mb-4 flex items-center gap-2 font-bold"><ShoppingBag size={19} /> My orders</h2>{orders.length ? <div className="grid gap-4 lg:grid-cols-2">{orders.map((order) => <OrderCard key={order.id} order={order} busy={busy} onStatus={updateOrder} onMessage={message} onOpen={() => void openProduct(order.listing)} />)}</div> : <Empty>Your orders will appear here. Browse items to place your first order.</Empty>}</section> : <>
+        {view === 'orders' ? <section><h2 className="mb-4 flex items-center gap-2 font-bold"><ShoppingBag size={19} /> My orders</h2>{orders.length ? <div className="grid gap-4 lg:grid-cols-2">{orders.map((order) => <OrderCard key={order.id} order={order} busy={busy} onStatus={updateOrder} onMessage={message} onOpen={() => void openProduct(order.listing)} onRecordPayment={recordPayment} onVoidPayment={voidPayment} />)}</div> : <Empty>Your orders will appear here. Browse items to place your first order.</Empty>}</section> : <>
           {myShop ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-5"><div><p className="text-xs font-semibold text-primary">{shopTypeLabel(myShop.type)}</p><h2 className="mt-1 text-xl font-bold">{myShop.name}</h2><p className="mt-1 text-sm text-muted-foreground">{myShop.location}</p></div><button onClick={() => openShop(myShop.id)} className="rounded-lg border border-border px-4 py-2 text-sm font-semibold">View storefront</button></div> : <div className="rounded-xl border border-primary/30 bg-primary/5 p-6"><h2 className="text-xl font-bold">Start selling in Marketplace</h2><p className="mt-2 text-sm text-muted-foreground">Create a Plaza, Store, or Supermarket account before publishing your items.</p><button onClick={() => setRegisterOpen(true)} className="brand-gradient mt-4 rounded-lg px-4 py-3 text-sm font-semibold text-white">Create seller account</button></div>}
-          <section><h2 className="mb-4 font-bold">Incoming orders</h2><p className="mb-4 text-sm text-muted-foreground">Chat with each buyer to agree on delivery or pickup. Mark completed after handover and payment.</p>{incoming.length ? <div className="grid gap-4 lg:grid-cols-2">{incoming.map((order) => <OrderCard key={order.id} order={order} selling busy={busy} onStatus={updateOrder} onMessage={message} onOpen={() => void openProduct(order.listing)} />)}</div> : <Empty>Orders from your customers will appear here.</Empty>}</section>
+          <section><h2 className="mb-4 font-bold">Incoming orders</h2><p className="mb-4 text-sm text-muted-foreground">Chat with each buyer to agree on delivery or pickup. Mark completed after handover and payment. For {PAY_SMALL_SMALL} orders, record each payment you receive; you can complete them once fully paid.</p>{incoming.length ? <div className="grid gap-4 lg:grid-cols-2">{incoming.map((order) => <OrderCard key={order.id} order={order} selling busy={busy} onStatus={updateOrder} onMessage={message} onOpen={() => void openProduct(order.listing)} onRecordPayment={recordPayment} onVoidPayment={voidPayment} />)}</div> : <Empty>Orders from your customers will appear here.</Empty>}</section>
           {myShop && <section><div className="mb-4 flex items-center justify-between"><h2 className="font-bold">Your listings</h2><button onClick={openSell} disabled={busy} className="text-sm font-semibold text-primary">Add item</button></div>{mine.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{mine.map((listing) => <button key={listing.id} onClick={() => void openProduct(listing)} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left"><img src={listing.imageUrls[0]} alt="" className="h-16 w-16 rounded-lg object-cover" /><span className="min-w-0"><span className="block truncate font-semibold">{listing.title}</span><span className="mt-1 block text-xs text-muted-foreground">{money(listing.price)} · {listing.stockQuantity} in stock</span><span className="mt-1 block text-xs capitalize text-primary">{listing.status.toLowerCase()}</span></span></button>)}</div> : <Empty>Your shop is ready. Add your first item to start selling.</Empty>}</section>}
         </>}
       </div>)}
-      {selected && <ProductDetail key={selected.id} listing={selected} busy={busy} error={detailError} onClose={() => { selectionRequest.current++; setSelected(null); }} onBuy={buy} onStatus={(status) => void updateProduct(() => marketApi.setProductStatus(selected.id, status))} onStock={(quantity) => void updateProduct(() => marketApi.setStock(selected.id, quantity))} onMessage={message} onShop={openShop} onSelect={(listing) => void openProduct(listing)} />}
+      {selected && <ProductDetail key={selected.id} listing={selected} busy={busy} error={detailError} onClose={() => { selectionRequest.current++; setSelected(null); }} onBuy={buy} onStatus={(status) => void updateProduct(() => marketApi.setProductStatus(selected.id, status))} onStock={(quantity) => void updateProduct(() => marketApi.setStock(selected.id, quantity))} onInstallments={(settings) => void updateProduct(() => marketApi.setInstallments(selected.id, settings))} onMessage={message} onShop={openShop} onSelect={(listing) => void openProduct(listing)} />}
       {registerOpen && <ShopRegistration onClose={() => setRegisterOpen(false)} onCreated={(shop) => { setMyShop(shop); setRegisterOpen(false); setSellOpen(true); refresh(); }} />}
       {sellOpen && myShop && <SellModal shop={myShop} onClose={() => setSellOpen(false)} onCreated={() => { setSellOpen(false); if (shopId) router.push('/app/market'); setView('selling'); refresh(); }} />}
     </div>

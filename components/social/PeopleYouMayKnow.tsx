@@ -136,7 +136,7 @@ export function PeopleYouMayKnow({ limit = 10 }: { limit?: number }) {
                 <span className="text-xs font-semibold text-foreground truncate">
                   {person.displayName}
                 </span>
-                {person.creatorStatus === 'APPROVED' && <VerifiedBadge size={12} />}
+                {person.isVerified && <VerifiedBadge size={12} />}
               </span>
               <span className="block text-[11px] text-muted-foreground truncate max-w-full">
                 {fmt(person.followersCount)} followers

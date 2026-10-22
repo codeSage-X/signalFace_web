@@ -557,7 +557,7 @@ export function PostDetailModal({
                 className="flex items-center gap-1.5 text-sm font-semibold text-foreground hover:underline"
               >
                 <span className="truncate">{authorName}</span>
-                {!realm && post.author.creatorStatus === 'APPROVED' && (
+                {(realm ? realm.verified : post.author.isVerified) && (
                   <VerifiedBadge size={14} />
                 )}
               </Link>

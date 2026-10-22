@@ -161,7 +161,7 @@ export function ChatThread({
             className="flex items-center gap-1.5 text-sm font-semibold text-foreground hover:underline"
           >
             <span className="truncate">{other.displayName}</span>
-            {other.creatorStatus === 'APPROVED' && <VerifiedBadge size={13} />}
+            {other.isVerified && <VerifiedBadge size={13} />}
           </Link>
           <p className="text-xs text-muted-foreground truncate">@{other.username}</p>
         </div>

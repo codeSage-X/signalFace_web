@@ -2,7 +2,7 @@
 
 import { MapPin, Package } from 'lucide-react';
 import type { MarketplaceListing } from '@/lib/api';
-import { conditionLabel, money, relativeDate } from './market-utils';
+import { PAY_SMALL_SMALL, conditionLabel, money, relativeDate } from './market-utils';
 
 export function ProductCard({ listing, onOpen }: { listing: MarketplaceListing; onOpen: () => void }) {
   return (
@@ -19,6 +19,7 @@ export function ProductCard({ listing, onOpen }: { listing: MarketplaceListing; 
           <p className="mt-1 truncate text-xs text-muted-foreground">{listing.shop?.name}</p>
           <p className="mt-1 text-lg font-bold text-foreground">{money(listing.price)}</p>
           {listing.negotiable && <p className="text-xs font-medium text-primary">Negotiable</p>}
+          {listing.installmentMaxCount && <p className="mt-1 inline-block rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary">{PAY_SMALL_SMALL} available</p>}
           <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="flex min-w-0 items-center gap-1 truncate"><MapPin size={12} className="shrink-0" /> {listing.location}</span>
             <span className="shrink-0">{relativeDate(listing.createdAt)}</span>

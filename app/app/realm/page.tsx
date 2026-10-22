@@ -327,7 +327,7 @@ export default function CreatorRealmPage() {
           <div className="flex-1 min-w-0 pb-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-bold text-foreground">{realm.name}</h1>
-              <BadgeCheck size={18} className="text-primary flex-shrink-0" />
+              {realm.verified && <BadgeCheck size={18} className="text-primary flex-shrink-0" />}
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sidebar-accent text-foreground">
                 {realmCategoryLabel(realm)}
               </span>
