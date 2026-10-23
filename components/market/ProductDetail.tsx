@@ -10,7 +10,8 @@ import {
 import { MallDialog } from './MallDialog';
 import { ProductCard } from './ProductCard';
 import { INSTALLMENT_COUNTS, InstallmentFields, installmentSettings } from './InstallmentFields';
-import { PAY_SMALL_SMALL, categoryLabel, conditionLabel, frequencyLabel, installmentPreview, money, shopTypeLabel } from './market-utils';
+import type { MarketplaceMessageDraft } from '@/lib/stores';
+import { PAY_SMALL_SMALL, categoryLabel, listingChatMedia, conditionLabel, frequencyLabel, installmentPreview, money, shopTypeLabel } from './market-utils';
 
 export function ProductDetail({ listing, busy, error, onClose, onBuy, onStatus, onStock, onInstallments, onMessage, onShop, onSelect }: {
   listing: MarketplaceListing; busy: boolean; error: string; onClose: () => void;
@@ -18,7 +19,7 @@ export function ProductDetail({ listing, busy, error, onClose, onBuy, onStatus, 
   onStatus: (status: 'ACTIVE' | 'SOLD' | 'CANCELED') => void;
   onStock: (quantity: number) => void;
   onInstallments: (settings: ReturnType<typeof installmentSettings>) => void;
-onMessage: (username: string, draft: string) => void;
+  onMessage: (username: string, draft: MarketplaceMessageDraft) => void;
   onShop: (id: string) => void;
   onSelect: (listing: MarketplaceListing) => void;
 }) {
@@ -89,10 +90,10 @@ onMessage: (username: string, draft: string) => void;
   type="button"
   disabled={busy}
   onClick={() =>
-    onMessage(
-      listing.seller.username,
-      `Hi, I'm interested in "${listing.title}". I see the listed price is ${money(listing.price)}. Is it still available?`,
-    )
+    onMessage(listing.seller.username, {
+      text: `Hi, I'm interested in "${listing.title}". I see the listed price is ${money(listing.price)}. Is it still available?`,
+      media: listingChatMedia(listing),
+    })
   }
   className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary p-3 font-semibold text-primary"
 >

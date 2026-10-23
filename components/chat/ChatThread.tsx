@@ -10,6 +10,7 @@ import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { MessageComposer } from '@/components/chat/MessageComposer';
 import { MessageMedia } from '@/components/chat/MessageMedia';
 import { MessageText } from '@/components/chat/MessageText';
+import type { ChatMediaUpload } from '@/lib/api';
 import type { FollowPerson } from '@/lib/api';
 
 /** Within this many pixels of the bottom counts as "following the conversation". */
@@ -39,6 +40,7 @@ export function ChatThread({
   other,
   onBack,
   initialDraft,
+  initialMedia,
   onInitialDraftApplied,
 }: {
   conversationId: string;
@@ -46,6 +48,7 @@ export function ChatThread({
   other: FollowPerson;
   onBack?: () => void;
   initialDraft?: string;
+  initialMedia?: ChatMediaUpload;
   onInitialDraftApplied?: () => void;
 }) {
   const { messages, loading, error, sending, sendMessage, markAsRead, me } = useChat(
@@ -270,6 +273,7 @@ export function ChatThread({
   placeholder={`Message ${other.displayName}`}
   sending={sending}
   initialDraft={initialDraft}
+  initialMedia={initialMedia}
   onInitialDraftApplied={onInitialDraftApplied}
   onSend={async (text, media) => {
     setNearBottom(true);

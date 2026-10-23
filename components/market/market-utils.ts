@@ -1,4 +1,4 @@
-import type { MarketplaceCategory, MarketplaceCondition, MarketplaceInstallmentFrequency, MarketplaceShopType } from "@/lib/api";
+import type { ChatMediaUpload, MarketplaceCategory, MarketplaceCondition, MarketplaceInstallmentFrequency, MarketplaceListing, MarketplaceShopType } from "@/lib/api";
 
 export const CATEGORIES: Array<{ value: MarketplaceCategory | ''; label: string }> = [
   { value: '', label: 'All listings' },
@@ -55,4 +55,14 @@ export function installmentPreview(total: number, count: number, depositPercent:
   const each = Math.floor((totalKobo - deposit) / (count - 1));
   const last = totalKobo - deposit - each * (count - 2);
   return { deposit: deposit / 100, each: each / 100, last: last / 100 };
+}
+
+// The listing's lead photo, attached to a chat as-is: it is already public on the
+// Marketplace, so it needs no second upload or moderation pass.
+export function listingChatMedia(listing: MarketplaceListing): ChatMediaUpload | undefined {
+  const url = listing.imageUrls[0];
+  if (!url) return undefined;
+  const extension = url.split('?')[0].split('.').pop()?.toLowerCase();
+  const mimeType = extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : 'image/jpeg';
+  return { url, type: 'image', mimeType, name: listing.title, moderationStatus: 'approved' };
 }

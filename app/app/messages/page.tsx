@@ -288,7 +288,8 @@ function MessagesInner() {
             conversationId={conversationId}
             other={other}
             onBack={() => router.push('/app/messages')}
-            initialDraft={pendingDraft ?? undefined}
+            initialDraft={pendingDraft?.text}
+            initialMedia={pendingDraft?.media}
             onInitialDraftApplied={clearPendingDraft}
           />
         ) : (

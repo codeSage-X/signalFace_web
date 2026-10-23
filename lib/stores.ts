@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 // Type-only, so this does not create a runtime cycle with api.ts (which imports
 // `useAuth` from here).
-import type { Realm } from './api';
+import type { ChatMediaUpload, Realm } from './api';
 
 /**
  * Which identity the user is acting as. A creator has two: their personal
@@ -58,9 +58,15 @@ export const useProfileMode = create<ProfileModeState>()(
   ),
 );
 
+// What "Chat with seller" pre-fills: the item's details and, when it has one, its photo.
+export interface MarketplaceMessageDraft {
+  text: string;
+  media?: ChatMediaUpload;
+}
+
 interface MarketplaceMessageDraftState {
-  pendingDraft: string | null;
-  setPendingDraft: (draft: string) => void;
+  pendingDraft: MarketplaceMessageDraft | null;
+  setPendingDraft: (draft: MarketplaceMessageDraft | null) => void;
   clearPendingDraft: () => void;
 }
 

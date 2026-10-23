@@ -10,7 +10,7 @@ import {
   type MarketplaceOrderInput, type MarketplaceOrderStatus, type MarketplaceShopType,
   type MarketplaceStorefront,
 } from '@/lib/api';
-import { useAuth, useMarketplaceMessageDraft, useToast } from '@/lib/stores';
+import { useAuth, useMarketplaceMessageDraft, useToast, type MarketplaceMessageDraft } from '@/lib/stores';
 import { useMarketplacePage } from '@/hooks/useMarketplacePage';
 import { ProductCard } from '@/components/market/ProductCard';
 import { ProductDetail } from '@/components/market/ProductDetail';
@@ -131,7 +131,7 @@ function MarketPageInner() {
     setView(next); setQuery(''); setSubmittedQuery(''); setCategory('');
   }
   function openShop(id: string) { selectionRequest.current++; setSelected(null); router.push(`/app/market?shop=${encodeURIComponent(id)}`); }
- function message(username: string, draft = '') {
+ function message(username: string, draft?: MarketplaceMessageDraft) {
   selectionRequest.current++;
   setSelected(null);
 
@@ -140,7 +140,8 @@ function MarketPageInner() {
     return;
   }
 
-  setPendingDraft(draft);
+  // Cleared when there is no draft, so an unused one never leaks into another chat.
+  setPendingDraft(draft ?? null);
   router.push(messageHref(username));
 }
   async function openProduct(listing: MarketplaceListing) {
