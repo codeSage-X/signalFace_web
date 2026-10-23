@@ -13,7 +13,7 @@ import {
   Users,
 } from 'lucide-react';
 import { UserAvatar } from '@/components/UserAvatar';
-import { usd } from '@/components/dashboard/SignalMarketCard';
+import { signalHandle, signalHref, usd } from '@/components/dashboard/SignalMarketCard';
 import { signalsApi, type SignalListItem } from '@/lib/api';
 import { useToast } from '@/lib/stores';
 
@@ -48,14 +48,14 @@ const SignalRow = ({
 
   return (
     <div className="glass-card rounded-2xl p-4 sm:p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <Link href={`/app/u/${signal.creatorUsername}`} className="flex items-center gap-3 min-w-0">
+      <Link href={signalHref(signal)} className="flex items-center gap-3 min-w-0">
         <UserAvatar src={signal.creatorAvatarUrl} name={signal.creatorName} size="md" />
         <span className="min-w-0">
           <span className="block font-semibold text-card-foreground truncate">
             {signal.creatorName}
           </span>
           <span className="block text-sm text-muted-foreground truncate">
-            @{signal.creatorUsername}
+            {signalHandle(signal)}
           </span>
         </span>
       </Link>

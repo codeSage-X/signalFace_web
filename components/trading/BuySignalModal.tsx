@@ -5,6 +5,7 @@ import { Loader2, Wallet, X, Zap } from 'lucide-react';
 import { signalsApi, type SignalListItem } from '@/lib/api';
 import { useAuth, useToast } from '@/lib/stores';
 import { formatSignalFaceCoins, formatUsd, usdToSignalFaceCoins } from '@/lib/utils';
+import { signalHandle } from '@/components/dashboard/SignalMarketCard';
 
 const PAYMENT_CURRENCIES = ['USD', 'NGN', 'GBP', 'EUR', 'GHS', 'KES', 'ZAR'] as const;
 
@@ -84,7 +85,7 @@ export function BuySignalModal({ signal, onClose, onPurchased }: BuySignalModalP
           <div>
             <h2 className="text-lg font-bold text-foreground">Buy Signal</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              {signal.title ?? `${signal.creatorName} Signal`} · @{signal.creatorUsername}
+              {signal.title ?? `${signal.creatorName} Signal`} · {signalHandle(signal)}
             </p>
           </div>
           <button

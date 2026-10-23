@@ -23,6 +23,7 @@ import {
   type ActivityEntry,
 } from '@/components/dashboard/ActivityFeedCard';
 import { TopGainersCard, type GainerRow } from '@/components/dashboard/TopGainersCard';
+import { signalHandle, signalHref } from '@/components/dashboard/SignalMarketCard';
 
 /** How many samples each range renders. */
 const RANGE_POINTS: Record<Range, number> = { '24H': 24, '7D': 28, '30D': 30, ALL: 40 };
@@ -139,7 +140,7 @@ export default function DashboardPage() {
         return {
           id: h.signalId,
           name: h.creatorName,
-          meta: `@${h.creatorUsername}`,
+          meta: signalHandle(h),
           price: current,
           changePct: avg > 0 ? (current / avg - 1) * 100 : 0,
           portfolioPct: totals.totalValue > 0 ? (value / totals.totalValue) * 100 : 0,
@@ -157,11 +158,11 @@ export default function DashboardPage() {
         .map((s) => ({
           id: s.id,
           name: s.creatorName,
-          meta: `@${s.creatorUsername}`,
+          meta: signalHandle(s),
           avatarUrl: s.creatorAvatarUrl,
           price: Number(s.price),
           changePct: Number(s.growthPct),
-          href: `/app/u/${s.creatorUsername}`,
+          href: signalHref(s),
         })),
     [signals],
   );

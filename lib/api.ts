@@ -366,6 +366,8 @@ export interface SignalListItem {
   creatorName: string;
   creatorUsername: string;
   creatorAvatarUrl: string | null;
+  /** The owner's creator page; null only for admin-made Signals with no page. */
+  realmSlug: string | null;
   score: string;
   price: string;
   growthPct: string;
@@ -414,6 +416,8 @@ export type MarketplaceFulfillment = 'PAY_ON_DELIVERY' | 'PICKUP';
 export type MarketplaceOrderStatus = 'PENDING' | 'ACCEPTED' | 'COMPLETED' | 'CANCELED';
 export type MarketplacePaymentPlan = 'FULL' | 'INSTALLMENT';
 export type MarketplaceInstallmentFrequency = 'WEEKLY' | 'MONTHLY';
+// Pay small small is admin-granted per shop; every shop starts at NONE.
+export type MarketplaceInstallmentAccess = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
 export interface MarketplacePerson {
   id: string;
   username: string;
@@ -427,6 +431,14 @@ export interface MarketplaceShop {
   type: MarketplaceShopType;
   description: string;
   location: string;
+  /** Whether shoppers can choose Pay small small at this shop. */
+  paySmallSmall: boolean;
+  // The application and admin decision are only sent to the shop's owner.
+  installmentAccess?: MarketplaceInstallmentAccess;
+  installmentApplicationNote?: string | null;
+  installmentAppliedAt?: string | null;
+  installmentReviewNote?: string | null;
+  installmentReviewedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -508,6 +520,8 @@ export interface WalletHolding {
   signalId: string;
   creatorName: string;
   creatorUsername: string;
+  creatorAvatarUrl: string | null;
+  realmSlug: string | null;
   quantity: string;
   avgBuyPrice: string;
   currentPrice: string;
@@ -532,6 +546,7 @@ export interface P2PListing {
   creatorName: string;
   creatorUsername: string;
   creatorAvatarUrl: string | null;
+  realmSlug: string | null;
   sellerId: string;
   sellerName: string;
   sellerUsername: string;
@@ -741,6 +756,8 @@ export const marketApi = {
   getShop: (id: string) => request<MarketplaceStorefront>(`/market/shops/${encodeURIComponent(id)}`),
   createShop: (body: { name: string; type: MarketplaceShopType; description: string; location: string }) =>
     request<MarketplaceStorefront>('/market/shops', { method: 'POST', body: JSON.stringify(body) }),
+  applyForPaySmallSmall: (note?: string) =>
+    request<MarketplaceStorefront>('/market/shops/mine/installments', { method: 'POST', body: JSON.stringify(note ? { note } : {}) }),
   listShops: (params: { q?: string; shopType?: MarketplaceShopType | ''; cursor?: string | null; excludeMine?: boolean } = {}) => {
     const qs = new URLSearchParams();
     if (params.q) qs.set('q', params.q);

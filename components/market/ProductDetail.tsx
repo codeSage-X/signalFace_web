@@ -7,7 +7,6 @@ import {
   marketApi, type MarketplaceFulfillment, type MarketplaceInstallmentFrequency, type MarketplaceListing,
   type MarketplaceOrderInput, type MarketplacePaymentPlan,
 } from '@/lib/api';
-import { Tooltip } from '@/components/ui/tooltip';
 import { MallDialog } from './MallDialog';
 import { ProductCard } from './ProductCard';
 import { INSTALLMENT_COUNTS, InstallmentFields, installmentSettings } from './InstallmentFields';
@@ -118,17 +117,12 @@ onMessage: (username: string, draft: string) => void;
                 <label className="block text-sm font-semibold">Note to seller (optional)<textarea value={note} onChange={(event) => setNote(event.target.value)} rows={2} maxLength={500} className="glass-input mt-2 w-full resize-none rounded-lg p-3 font-normal" placeholder="Delivery area, pickup time, or a question" /></label>
                 <p className="flex justify-between text-sm"><span>Item total</span><strong>{money(orderTotal)}</strong></p>
                 <button type="submit" value="FULL" disabled={busy} className="brand-gradient flex w-full items-center justify-center gap-2 rounded-lg p-3 font-semibold text-white disabled:opacity-60">{busy && !installment ? <Loader2 size={18} className="animate-spin" /> : <ShoppingBag size={18} />} Place order</button>
-                {maxPayments > 0 ? <button type="button" disabled={busy} aria-expanded={installment} onClick={() => setPaymentPlan(installment ? 'FULL' : 'INSTALLMENT')}
+                {/* Only shops an admin has approved offer Pay small small; everyone else just places orders. */}
+                {maxPayments > 0 && <button type="button" disabled={busy} aria-expanded={installment} onClick={() => setPaymentPlan(installment ? 'FULL' : 'INSTALLMENT')}
                   className={`flex w-full flex-col items-center justify-center rounded-lg border-2 border-primary p-3 font-semibold text-primary transition hover:bg-primary/5 disabled:opacity-60 ${installment ? 'bg-primary/5' : ''}`}>
                   <span className="flex items-center gap-2"><CalendarClock size={18} /> {PAY_SMALL_SMALL}</span>
                   <span className="text-xs font-normal text-muted-foreground">Spread the cost over up to {maxPayments} payments</span>
-                </button> : <Tooltip content="Not eligible for this item" className="flex w-full">
-                  {/* aria-disabled rather than disabled, so keyboard users can still focus it and read why. */}
-                  <button type="button" aria-disabled="true"
-                    className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border-2 border-border bg-muted p-3 font-semibold text-muted-foreground opacity-70">
-                    <CalendarClock size={18} /> {PAY_SMALL_SMALL}
-                  </button>
-                </Tooltip>}
+                </button>}
                 {installment && <div className="space-y-3 rounded-lg border border-primary/40 p-3">
                   <div className="grid grid-cols-2 gap-2">
                     <label className="text-sm font-semibold">Number of payments<select value={installmentCount} onChange={(event) => setInstallmentCount(Number(event.target.value))} className="glass-input mt-2 w-full rounded-lg p-3 font-normal">{INSTALLMENT_COUNTS.filter((count) => count <= maxPayments).map((count) => <option key={count} value={count}>{count} payments</option>)}</select></label>
@@ -149,13 +143,13 @@ onMessage: (username: string, draft: string) => void;
               <label className="block text-sm font-semibold">Available stock (excluding reserved orders)<input type="number" min={0} max={1000000} step={1} required disabled={busy} value={Number.isNaN(stock) ? '' : stock} onChange={(event) => setStock(event.target.valueAsNumber)} className="glass-input mt-2 w-full rounded-lg p-3 font-normal" /></label>
               <button type="submit" disabled={busy} className="w-full rounded-lg border border-primary p-3 text-sm font-semibold text-primary disabled:opacity-60">Update stock</button>
             </form>
-            <form key={`${listing.installmentMaxCount}-${listing.installmentDepositPercent}`} onSubmit={(event) => { event.preventDefault(); onInstallments(installmentSettings(new FormData(event.currentTarget))); }} className="space-y-2">
+            {listing.shop?.installmentAccess === 'APPROVED' ? <form key={`${listing.installmentMaxCount}-${listing.installmentDepositPercent}`} onSubmit={(event) => { event.preventDefault(); onInstallments(installmentSettings(new FormData(event.currentTarget))); }} className="space-y-2">
               <fieldset disabled={busy} className="space-y-2">
                 <InstallmentFields maxCount={listing.installmentMaxCount} depositPercent={listing.installmentDepositPercent} />
                 <p className="text-xs text-muted-foreground">Changes apply to new orders. Existing plans keep their agreed terms.</p>
                 <button type="submit" className="w-full rounded-lg border border-primary p-3 text-sm font-semibold text-primary disabled:opacity-60">Save payment options</button>
               </fieldset>
-            </form>
+            </form> : <p className="text-xs text-muted-foreground">Want to offer {PAY_SMALL_SMALL} on this item? Apply for it from My shop.</p>}
             {listing.status === 'CANCELED' ? <button type="button" disabled={busy} onClick={() => onStatus('ACTIVE')} className="w-full rounded-lg border border-border p-3 text-sm font-semibold">Relist item</button> : <div className="flex gap-2">
               <button type="button" disabled={busy || listing.status === 'SOLD'} onClick={() => onStatus('SOLD')} className="flex-1 rounded-lg bg-foreground p-3 text-sm font-semibold text-background disabled:opacity-50">Mark sold</button>
               <button type="button" disabled={busy} onClick={() => onStatus('CANCELED')} className="flex-1 rounded-lg border border-border p-3 text-sm font-semibold">Remove listing</button>

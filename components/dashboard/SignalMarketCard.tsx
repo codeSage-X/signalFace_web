@@ -27,9 +27,17 @@ export const compact = (raw: string | number) => {
   return usd(n);
 };
 
+type SignalOwner = { creatorUsername: string; realmSlug: string | null };
+
+/** A Signal lives on its creator page, never on the owner's personal fan profile. */
+export const signalHref = (s: SignalOwner) =>
+  s.realmSlug ? `/app/r/${s.realmSlug}` : `/app/u/${s.creatorUsername}`;
+
+export const signalHandle = (s: SignalOwner) => `@${s.realmSlug ?? s.creatorUsername}`;
+
 /**
  * One tradable Signal, as `/signals` actually returns it. A Signal belongs to a
- * creator — there are no product tiers — so the card leads with the person.
+ * creator — there are no product tiers — so the card leads with that creator's page.
  */
 export const SignalMarketCard = ({
   signal,
@@ -47,7 +55,7 @@ export const SignalMarketCard = ({
     <div className="glass-card glass-hover rounded-2xl p-4 sm:p-5 flex flex-col">
       <div className="flex items-start justify-between gap-3">
         <Link
-          href={`/app/u/${signal.creatorUsername}`}
+          href={signalHref(signal)}
           className="flex items-center gap-3 min-w-0"
         >
           <UserAvatar src={signal.creatorAvatarUrl} name={signal.creatorName} size="md" />
@@ -56,7 +64,7 @@ export const SignalMarketCard = ({
               {signal.title ?? `${signal.creatorName} Signal`}
             </span>
             <span className="block text-sm text-muted-foreground truncate">
-              {signal.creatorName} · @{signal.creatorUsername}
+              {signal.creatorName} · {signalHandle(signal)}
             </span>
           </span>
         </Link>
@@ -98,7 +106,7 @@ export const SignalMarketCard = ({
 
       <div className="mt-4 pt-4 border-t border-white/[0.06] flex gap-2">
         <Link
-          href={`/app/u/${signal.creatorUsername}`}
+          href={signalHref(signal)}
           className="flex-1 text-center px-4 py-2.5 rounded-xl glass-chip text-sm font-medium
             text-foreground hover:brightness-125 transition"
         >

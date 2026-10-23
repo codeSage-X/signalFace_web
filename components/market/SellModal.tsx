@@ -55,7 +55,7 @@ export function SellModal({ shop, onClose, onCreated }: { shop: MarketplaceStore
             <label className="text-sm font-semibold sm:col-span-2">Description<textarea name="description" required minLength={10} maxLength={3000} rows={5} placeholder="Describe the item, its age, features, and anything a buyer should know." className="glass-input mt-2 w-full resize-none rounded-lg px-3 py-3 font-normal" /></label>
           </div>
           <label className="flex items-center gap-3 text-sm"><input name="negotiable" type="checkbox" className="h-4 w-4 accent-primary" /><span>Price is negotiable</span></label>
-          <InstallmentFields />
+          {shop.installmentAccess === 'APPROVED' && <InstallmentFields />}
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <button type="submit" disabled={busy} className="brand-gradient flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 font-semibold text-white disabled:opacity-60">{busy ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />} Publish listing</button>
         </fieldset></form>

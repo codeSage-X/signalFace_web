@@ -39,7 +39,7 @@ import {
   usdToSignalFaceCoins,
 } from '@/lib/utils';
 import { UserAvatar } from '@/components/UserAvatar';
-import { usd } from '@/components/dashboard/SignalMarketCard';
+import { signalHref, usd } from '@/components/dashboard/SignalMarketCard';
 
 const PAGE_SIZE = 20;
 
@@ -728,11 +728,11 @@ function PortfolioPageInner() {
                           key={h.signalId}
                           className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 glass-tile rounded-xl"
                         >
-                          <Link href={`/app/u/${h.creatorUsername}`} className="flex-shrink-0">
-                            <UserAvatar name={h.creatorName} size="sm" />
+                          <Link href={signalHref(h)} className="flex-shrink-0">
+                            <UserAvatar src={h.creatorAvatarUrl} name={h.creatorName} size="sm" />
                           </Link>
 
-                          <Link href={`/app/u/${h.creatorUsername}`} className="flex-1 min-w-0">
+                          <Link href={signalHref(h)} className="flex-1 min-w-0">
                             <p className="font-semibold text-foreground truncate">{h.creatorName}</p>
                             <p className="text-xs text-muted-foreground truncate">
                               {Number(h.quantity).toLocaleString(undefined, {

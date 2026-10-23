@@ -278,6 +278,7 @@ export default function PublicRealmPage() {
       creatorName: realm.name,
       creatorUsername: realm.owner.username,
       creatorAvatarUrl: realm.iconUrl,
+      realmSlug: realm.slug,
       score: realm.signal.score,
       price: realm.signal.price,
       growthPct: realm.signal.growthPct,

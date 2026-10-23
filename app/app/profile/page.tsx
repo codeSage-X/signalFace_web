@@ -58,7 +58,7 @@ import {
 import { FollowersFollowingModal } from '@/components/social/FollowersFollowingModal';
 import { ModeratedMedia } from '@/components/social/ModeratedMedia';
 import { UserAvatar } from '@/components/UserAvatar';
-import { usd } from '@/components/dashboard/SignalMarketCard';
+import { signalHandle, signalHref, usd } from '@/components/dashboard/SignalMarketCard';
 import { Tooltip } from '@/components/ui/tooltip';
 
 const MAX_PINNED_POSTS = 3;
@@ -1073,12 +1073,12 @@ function ProfilePortfolioTransparency({
             <ul className="divide-y divide-white/10">
               {holdings.map((holding) => (
                 <li key={holding.signalId} className="p-4 flex items-center justify-between gap-4">
-                  <NextLink href={`/app/u/${holding.creatorUsername}`} className="min-w-0">
+                  <NextLink href={signalHref(holding)} className="min-w-0">
                     <p className="text-sm font-semibold text-foreground truncate">
                       {holding.creatorName}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
-                      @{holding.creatorUsername} ·{' '}
+                      {signalHandle(holding)} ·{' '}
                       {Number(holding.quantity).toLocaleString(undefined, {
                         maximumFractionDigits: 4,
                       })}{' '}
