@@ -21,7 +21,9 @@ import { MediaComposer } from '@/components/upload/MediaComposer';
 import type { AspectRatio } from '@/components/upload/mediaEditing';
 
 const MAX_FILES = 4;
-const MAX_FILE_BYTES = 50 * 1024 * 1024;
+// Photos are capped by the Cloudinary plan (10 MB); videos by the API (50 MB).
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 
 interface Attachment {
   file: File;
@@ -115,9 +117,10 @@ function UploadForm() {
 
     const accepted: File[] = [];
     for (const file of incoming.slice(0, room)) {
-      if (file.size > MAX_FILE_BYTES) {
+      const isVideoFile = file.type.startsWith('video/');
+      if (file.size > (isVideoFile ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES)) {
         addToast({
-          message: `${file.name} is over the 50MB limit.`,
+          message: `${file.name} is too large. ${isVideoFile ? 'Videos' : 'Photos'} must be ${isVideoFile ? '50' : '10'} MB or smaller.`,
           type: 'error',
           duration: 4000,
         });
