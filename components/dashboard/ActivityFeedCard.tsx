@@ -58,12 +58,12 @@ export const ActivityFeedCard = ({ entries }: { entries: ActivityEntry[] }) => (
     ) : (
       <ul className="space-y-4">
         {entries.map((e) => {
-          const Icon = ICONS[e.kind];
+          const Icon = ICONS[e.kind] ?? ShoppingBag;
           return (
             <li key={e.id} className="flex items-start gap-3">
               <span
                 className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                style={{ backgroundColor: ICON_BG[e.kind] }}
+                style={{ backgroundColor: ICON_BG[e.kind] ?? DASH.iconIndigo }}
               >
                 <Icon size={14} className="text-white" />
               </span>

@@ -972,7 +972,9 @@ export type ActivityKind =
   | 'like'
   | 'comment'
   | 'repost'
-  | 'admin';
+  | 'admin'
+  | 'order'
+  | 'referral';
 
 export interface ActivityItem {
   id: string;
@@ -989,6 +991,8 @@ export interface ActivityItem {
     avatarUrl: string | null;
   } | null;
   postId: string | null;
+  /** Where acting on this item happens, e.g. My shop for a new order. */
+  href?: string | null;
   adminInvitation?: {
     id: string;
     scope: 'realm';

@@ -7,12 +7,14 @@ import {
   Heart,
   Loader2,
   MessageSquare,
+  Package,
   Repeat2,
   ShieldCheck,
   ShoppingBag,
   UserPlus,
   UsersRound,
 } from 'lucide-react';
+import Link from 'next/link';
 import { activityApi, realmsApi, type ActivityItem, type ActivityKind } from '@/lib/api';
 import { useAuth, useProfileMode, useToast } from '@/lib/stores';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -33,6 +35,8 @@ const ICONS: Record<ActivityKind, typeof Bell> = {
   comment: MessageSquare,
   repost: Repeat2,
   admin: ShieldCheck,
+  order: Package,
+  referral: UsersRound,
 };
 
 function timeAgo(value: string) {
@@ -53,7 +57,8 @@ function iconTone(item: ActivityItem) {
   if (item.tone === 'down') return 'text-destructive';
   if (item.kind === 'like') return 'text-primary';
   if (item.kind === 'comment') return 'text-sky-300';
-  if (item.kind === 'follow') return 'text-up';
+  if (item.kind === 'follow' || item.kind === 'referral') return 'text-up';
+  if (item.kind === 'order') return 'text-primary';
   return 'text-muted-foreground';
 }
 
@@ -385,7 +390,7 @@ export default function ActivityPage() {
             <Bell size={24} className="mx-auto text-muted-foreground" />
             <p className="mt-3 text-sm font-semibold text-foreground">No activity yet</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Invitations, admin assignments, followers, rewards, wallet events, and post engagement will appear here.
+              Invitations, admin assignments, followers, referrals, orders, rewards, wallet events, and post engagement will appear here.
             </p>
           </div>
         ) : items.length === 0 ? (
@@ -395,7 +400,8 @@ export default function ActivityPage() {
         ) : (
           <ul className="divide-y divide-white/10">
             {items.map((item) => {
-              const Icon = ICONS[item.kind];
+              // Falls back so a kind added on the API first never breaks this page.
+              const Icon = ICONS[item.kind] ?? Bell;
               return (
                 <li key={item.id}>
                 <div className="flex items-start gap-3 p-4 text-left hover:bg-white/[0.03] transition">
@@ -415,7 +421,11 @@ export default function ActivityPage() {
                   </span>
 
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-foreground">{item.title}</span>
+                    {item.href ? (
+                      <Link href={item.href} className="block text-sm font-semibold text-foreground hover:text-primary">{item.title}</Link>
+                    ) : (
+                      <span className="block text-sm font-semibold text-foreground">{item.title}</span>
+                    )}
                     {item.body && (
                       <span className="block text-xs text-muted-foreground mt-0.5 line-clamp-2">
                         {item.body}

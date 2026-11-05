@@ -47,7 +47,7 @@ function dashboardActivity(item: ActivityItem): ActivityEntry {
   return {
     id: item.id,
     kind:
-      item.kind === 'transaction'
+      item.kind === 'transaction' || item.kind === 'order'
         ? 'buy'
         : item.kind === 'follow'
           ? 'referral'

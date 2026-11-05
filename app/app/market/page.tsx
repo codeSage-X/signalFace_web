@@ -81,6 +81,11 @@ function MarketPageInner() {
     setQuery(''); setSubmittedQuery(''); setCategory('');
     if (shopId) setView('browse');
   }, [shopId]);
+  // Notifications deep-link here, e.g. a new order opens /app/market?view=selling.
+  const viewParam = params.get('view');
+  useEffect(() => {
+    if (!shopId && VIEWS.some((item) => item.value === viewParam)) setView(viewParam as View);
+  }, [viewParam, shopId]);
   useEffect(() => {
     let cancelled = false;
     setStorefront(null); setStorefrontError('');
