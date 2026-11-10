@@ -30,6 +30,10 @@ import {
   OtpInput,
 } from './FormInputs';
 import { BrandMark } from '@/components/BrandMark';
+import { UserAvatar } from '@/components/UserAvatar';
+
+/** Whose invite a referral code is, as shown under the code box. */
+type Referrer = { username: string; displayName: string; avatarUrl: string | null };
 
 const GENDER_OPTIONS = [
   { value: 'male', label: 'Male' },
@@ -158,6 +162,47 @@ export const AuthGateModal = () => {
     }
     setReferralCode(sessionStorage.getItem('referralCode'));
   }, []);
+
+  /**
+   * Who the code credits, checked as it is typed or pasted so a typo shows up
+   * before sign-up rather than as a missing referral afterwards. Advisory only:
+   * sign-up never fails over the code, it just credits nobody.
+   */
+  const [referrerStatus, setReferrerStatus] = useState<
+    | { state: 'checking' }
+    | { state: 'found'; referrer: Referrer }
+    | { state: 'not-found' }
+    | null
+  >(null);
+
+  useEffect(() => {
+    // Only the sign-up view shows the box, so don't spend requests elsewhere.
+    if (!authModalOpen || view !== 'signup' || !referralCode) {
+      setReferrerStatus(null);
+      return;
+    }
+
+    let cancelled = false;
+    setReferrerStatus({ state: 'checking' });
+
+    const id = setTimeout(() => {
+      authApi
+        .referrer(referralCode)
+        .then((res) => {
+          if (cancelled) return;
+          setReferrerStatus(res.referrer ? { state: 'found', referrer: res.referrer } : { state: 'not-found' });
+        })
+        // A failed check (offline, rate-limited) must not claim the code is bad.
+        .catch(() => {
+          if (!cancelled) setReferrerStatus(null);
+        });
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [referralCode, view, authModalOpen]);
 
   // Topics chosen on the step after verification.
   const [interests, setInterests] = useState<RealmCategory[]>([]);
@@ -502,10 +547,32 @@ export const AuthGateModal = () => {
                 placeholder="Referral code (optional)"
                 className="w-full px-4 py-3 rounded-xl glass-input text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
-              {referralCode && (
-                <p className="mt-1.5 text-xs text-emerald-400 flex items-center gap-1">
-                  <Check size={11} strokeWidth={3} />
-                  Invite applied — works with Google or email sign-up
+              {referrerStatus?.state === 'checking' && (
+                <p className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1">
+                  <Loader2 size={11} className="animate-spin" />
+                  Checking invite…
+                </p>
+              )}
+              {referrerStatus?.state === 'found' && (
+                <p className="mt-1.5 text-xs text-emerald-400 flex items-center gap-1.5 min-w-0">
+                  <span className="w-4 h-4 rounded-full overflow-hidden bg-black dark:bg-white flex-shrink-0">
+                    <UserAvatar
+                      src={referrerStatus.referrer.avatarUrl}
+                      name={referrerStatus.referrer.displayName}
+                      fill
+                      ring={false}
+                    />
+                  </span>
+                  <span className="truncate">
+                    Invited by {referrerStatus.referrer.displayName} (@{referrerStatus.referrer.username})
+                    {' '}— works with Google or email sign-up
+                  </span>
+                </p>
+              )}
+              {referrerStatus?.state === 'not-found' && (
+                <p className="mt-1.5 text-xs text-amber-400 flex items-center gap-1">
+                  <X size={11} strokeWidth={3} />
+                  No account found for that code — check the spelling, or leave it blank
                 </p>
               )}
             </div>

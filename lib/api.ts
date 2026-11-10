@@ -319,6 +319,14 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  /**
+   * Who a referral code belongs to — a username, `@username` or a whole invite
+   * link all work. `referrer` is null when the code matches nobody.
+   */
+  referrer: (code: string) =>
+    request<{
+      referrer: { username: string; displayName: string; avatarUrl: string | null } | null;
+    }>(`/auth/referrer?code=${encodeURIComponent(code)}`),
   verifyEmail: (body: { email: string; otp: string }) =>
     request<AuthResponse>('/auth/verify-email', {
       method: 'POST',
