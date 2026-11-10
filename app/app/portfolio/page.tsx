@@ -56,6 +56,7 @@ const transactionLabel: Record<WalletTransactionType, string> = {
   TRANSFER_RECEIVED: 'SC received',
   SIGNUP_BONUS: 'Signup reward',
   REFERRAL_BONUS: 'Referral reward',
+  REFERRAL_COMMISSION: 'Referral commission',
   ADMIN_ADJUST: 'Wallet adjustment',
   REWARD_CLAIM: 'Reward claimed',
 };

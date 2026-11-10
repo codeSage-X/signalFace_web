@@ -16,6 +16,8 @@ import {
 import {
   rewardsApi,
   ApiError,
+  type ReferralCommission,
+  type ReferralCommissions,
   type ReferralSummary,
   type RewardItem,
 } from '@/lib/api';
@@ -46,6 +48,7 @@ export default function RewardsPage() {
 
   const [rewards, setRewards] = useState<RewardItem[]>([]);
   const [referrals, setReferrals] = useState<ReferralSummary | null>(null);
+  const [commissions, setCommissions] = useState<ReferralCommissions | null>(null);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -60,11 +63,12 @@ export default function RewardsPage() {
     setLoading(true);
 
     // Settled rather than all: a failure in one panel shouldn't blank the other.
-    Promise.allSettled([rewardsApi.list(), rewardsApi.referrals()])
-      .then(([r, ref]) => {
+    Promise.allSettled([rewardsApi.list(), rewardsApi.referrals(), rewardsApi.commissions()])
+      .then(([r, ref, com]) => {
         if (cancelled) return;
         if (r.status === 'fulfilled') setRewards(r.value.items);
         if (ref.status === 'fulfilled') setReferrals(ref.value);
+        if (com.status === 'fulfilled') setCommissions(com.value);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -101,7 +105,31 @@ export default function RewardsPage() {
     }
   };
 
+  const handleClaimCommission = async (commission: ReferralCommission) => {
+    setClaiming(commission.id);
+    try {
+      const res = await rewardsApi.claimCommission(commission.id);
+      updateUser({ pointsBalance: res.balance });
+      addToast({
+        message: `Added ${fmtCoins(res.amount)} to your wallet!`,
+        type: 'success',
+        duration: 4000,
+      });
+      load();
+    } catch (err) {
+      addToast({
+        message: err instanceof ApiError ? err.message : 'Could not add that commission to your wallet.',
+        type: 'error',
+        duration: 4000,
+      });
+    } finally {
+      setClaiming(null);
+    }
+  };
+
   const inviteLink = referrals ? buildInviteLink(referrals.referralCode) : '';
+  const commissionPct = commissions ? `${Number(commissions.rate) * 100}%` : '5%';
+  const readyCommissions = commissions?.items.filter((c) => c.status === 'READY').length ?? 0;
 
   const copyInvite = async () => {
     try {
@@ -177,7 +205,7 @@ export default function RewardsPage() {
         <StatCard
           icon={<Gift size={16} />}
           label="Ready to claim"
-          value={loading ? '—' : String(rewards.filter((r) => r.claimable).length)}
+          value={loading ? '—' : String(rewards.filter((r) => r.claimable).length + readyCommissions)}
         />
       </div>
 
@@ -185,9 +213,9 @@ export default function RewardsPage() {
       <section id="invite-friends" aria-labelledby="invite-friends-title" className="glass-card rounded-2xl p-6 scroll-mt-20">
         <h2 id="invite-friends-title" className="font-bold text-foreground">Invite friends</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          {referrals?.bonusAmount
-            ? `You earn ${fmtCoins(referrals.bonusAmount)} each time someone you invite verifies their account.`
-            : 'Share your link so friends can join with your code.'}
+          You earn {commissionPct} of the first Signal purchase by each friend who joins with your link.
+          {referrals?.bonusAmount &&
+            ` Plus ${fmtCoins(referrals.bonusAmount)} when they verify their account.`}
         </p>
 
         <div className="mt-4 flex flex-col sm:flex-row gap-2">
@@ -233,20 +261,113 @@ export default function RewardsPage() {
                       @{person.username}
                     </span>
                   </span>
-                  {/* An unverified invite has not paid out yet, and saying so is
-                      better than silently counting it. */}
+                  {/* "Earned" only when this person really earned you something:
+                      a commission on their first Signal purchase, or a paid
+                      bonus. Otherwise "Joined", or "Pending" until verified. */}
                   <span
-                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                      person.verified
+                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                      person.commission || person.bonusPaid
                         ? 'bg-emerald-500/15 text-emerald-300'
-                        : 'bg-white/10 text-muted-foreground'
+                        : person.verified
+                          ? 'bg-primary/15 text-primary'
+                          : 'bg-white/10 text-muted-foreground'
                     }`}
                   >
-                    {person.verified ? 'Earned' : 'Pending'}
+                    {person.commission
+                      ? `Earned ${fmtCoins(person.commission.amount)}`
+                      : person.bonusPaid
+                        ? 'Earned'
+                        : person.verified
+                          ? 'Joined'
+                          : 'Pending'}
                   </span>
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+      </section>
+
+      {/* Referral commissions */}
+      <section aria-labelledby="referral-earnings-title">
+        <h2 id="referral-earnings-title" className="font-bold text-foreground mb-3">
+          Referral earnings
+        </h2>
+
+        {commissions && (
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <StatCard icon={<Clock size={16} />} label="Pending" value={fmtCoins(commissions.totals.pending)} />
+            <StatCard icon={<Gift size={16} />} label="Ready to claim" value={fmtCoins(commissions.totals.ready)} />
+            <StatCard icon={<Wallet size={16} />} label="Added to wallet" value={fmtCoins(commissions.totals.claimed)} />
+          </div>
+        )}
+
+        {loading ? (
+          <div className="glass-card rounded-2xl p-5 h-20 animate-pulse" />
+        ) : !commissions || commissions.items.length === 0 ? (
+          <div className="glass-card rounded-2xl p-6 text-center">
+            <UsersIcon size={24} className="mx-auto text-muted-foreground" />
+            <p className="mt-3 font-semibold text-card-foreground">No referral earnings yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              When someone you invite buys their first Signal, you earn {commissionPct} of it. It shows
+              here as Pending for {commissions?.holdHours ?? 24} hours, then you can add it to your wallet.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {commissions.items.map((c) => (
+              <div
+                key={c.id}
+                className="glass-card rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center gap-4"
+              >
+                <span className="w-11 h-11 rounded-full overflow-hidden bg-black dark:bg-white flex-shrink-0">
+                  <UserAvatar src={c.referredUser.avatarUrl} name={c.referredUser.displayName} fill ring={false} />
+                </span>
+
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-foreground truncate">
+                    {c.referredUser.displayName}&rsquo;s first Signal purchase
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
+                    <span className="font-semibold text-primary">+{fmtCoins(c.amount)}</span>
+                    <span>·</span>
+                    <span>
+                      {Number(c.rate) * 100}% of {fmtCoins(c.purchaseAmount)}
+                    </span>
+                  </p>
+                </div>
+
+                {c.status === 'READY' ? (
+                  <button
+                    onClick={() => handleClaimCommission(c)}
+                    disabled={claiming === c.id}
+                    className="px-5 py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 flex-shrink-0 brand-gradient text-white hover:brightness-110 disabled:opacity-60"
+                  >
+                    {claiming === c.id && <Loader2 size={14} className="animate-spin" />}
+                    Add to wallet
+                  </button>
+                ) : (
+                  <span
+                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 flex-shrink-0 glass-chip ${
+                      c.status === 'CLAIMED' ? 'text-emerald-300' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {c.status === 'CLAIMED' ? (
+                      <>
+                        <Check size={14} strokeWidth={3} /> In wallet
+                      </>
+                    ) : (
+                      <>
+                        <Clock size={14} /> Pending · ready {untilReady(c.availableAt)}
+                      </>
+                    )}
+                  </span>
+                )}
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground px-1">
+              Withdrawing referral earnings as cash is coming soon.
+            </p>
           </div>
         )}
       </section>

@@ -597,7 +597,8 @@ export type WalletTransactionType =
   | 'SIGNUP_BONUS'
   | 'REFERRAL_BONUS'
   | 'ADMIN_ADJUST'
-  | 'REWARD_CLAIM';
+  | 'REWARD_CLAIM'
+  | 'REFERRAL_COMMISSION';
 
 export interface WalletTransaction {
   id: string;
@@ -722,6 +723,14 @@ export interface ReferralPerson {
   avatarUrl: string | null;
   /** Unverified invitees haven't paid out yet. */
   verified: boolean;
+  /**
+   * A referral bonus was actually credited for this person. Verified alone
+   * isn't enough: with no active bonus configured, nothing is paid. Optional
+   * so an API that predates the field reads as "not paid", never "earned".
+   */
+  bonusPaid?: boolean;
+  /** What their first signal purchase earned you. Null until they buy. */
+  commission?: { amount: string; status: CommissionStatus } | null;
   joinedAt: string;
 }
 
@@ -733,6 +742,29 @@ export interface ReferralSummary {
   referrals: ReferralPerson[];
 }
 
+/** PENDING during the 24h hold, READY to add to the wallet, CLAIMED once added. */
+export type CommissionStatus = 'PENDING' | 'READY' | 'CLAIMED';
+
+export interface ReferralCommission {
+  id: string;
+  referredUser: { username: string; displayName: string; avatarUrl: string | null };
+  purchaseAmount: string;
+  rate: string;
+  amount: string;
+  status: CommissionStatus;
+  availableAt: string;
+  claimedAt: string | null;
+  createdAt: string;
+}
+
+export interface ReferralCommissions {
+  /** e.g. "0.05" for 5%. */
+  rate: string;
+  holdHours: number;
+  totals: { pending: string; ready: string; claimed: string };
+  items: ReferralCommission[];
+}
+
 export const rewardsApi = {
   list: () => request<{ items: RewardItem[] }>('/rewards'),
   claim: (id: string) =>
@@ -740,6 +772,13 @@ export const rewardsApi = {
       method: 'POST',
     }),
   referrals: () => request<ReferralSummary>('/rewards/referrals'),
+  commissions: () => request<ReferralCommissions>('/rewards/commissions'),
+  /** Moves a ready commission into the wallet. */
+  claimCommission: (id: string) =>
+    request<{ id: string; amount: string; status: 'CLAIMED'; balance: string }>(
+      `/rewards/commissions/${id}/claim`,
+      { method: 'POST' },
+    ),
 };
 
 export const signalsApi = {
