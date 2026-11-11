@@ -729,6 +729,8 @@ export interface ReferralPerson {
    * so an API that predates the field reads as "not paid", never "earned".
    */
   bonusPaid?: boolean;
+  /** Ecosystem Coins this invite earned you. Null when none. */
+  coins?: string | null;
   /** What their first signal purchase earned you. Null until they buy. */
   commission?: { amount: string; status: CommissionStatus } | null;
   joinedAt: string;
@@ -736,8 +738,12 @@ export interface ReferralPerson {
 
 export interface ReferralSummary {
   referralCode: string;
-  /** What a referral is worth right now; null when none is configured. */
+  /** The old Signal Credit bonus. No longer paid; always null now. */
   bonusAmount: string | null;
+  /** Ecosystem Coins a new verified referral earns now. Null when none. */
+  referralCoinReward?: string | null;
+  /** Ecosystem Coins earned from referrals so far. */
+  coinsEarned?: string;
   totalEarned: string;
   referrals: ReferralPerson[];
 }
@@ -779,6 +785,59 @@ export const rewardsApi = {
       `/rewards/commissions/${id}/claim`,
       { method: 'POST' },
     ),
+};
+
+// ─── Ecosystem Coin ───────────────────────────────────────────────────────────
+// Free platform reward coins, separate from Signal Credits (SC). No guaranteed
+// cash value; the wallet shows the disclaimer the API returns.
+
+/** A coin reward that is switched on right now. Off rewards are left out. */
+export interface CoinEarning {
+  trigger: 'REFERRAL' | 'DAILY_LOGIN' | 'POST_CREATED' | string;
+  amount: string;
+  dailyLimitPerUser: number | null;
+}
+
+export interface CoinValuationNotice {
+  disclaimer: string;
+  withdrawalStatus: string;
+  /** Hypothetical example prices, e.g. "$1". Never a promise. */
+  examplePrices: string[];
+  examplePriceNote: string;
+  redeemable: false;
+}
+
+export interface CoinTransactionItem {
+  id: string;
+  type: 'REWARD' | 'TRANSFER_SENT' | 'TRANSFER_RECEIVED' | 'ADMIN_ADJUST';
+  /** referral, daily_login, post_created, transfer, adjustment */
+  source: string;
+  /** Ready to show, e.g. "Referral reward" or "Sent to @bob". */
+  label: string;
+  /** Signed. */
+  amount: string;
+  balanceAfter: string;
+  note: string | null;
+  counterparty: { username: string; displayName: string; avatarUrl: string | null } | null;
+  createdAt: string;
+}
+
+export const coinsApi = {
+  me: () =>
+    request<{ balance: string; earning?: CoinEarning[]; valuation: CoinValuationNotice }>('/coins/me'),
+  transactions: (cursor?: string | null, limit = 20) =>
+    request<{ items: CoinTransactionItem[]; nextCursor: string | null }>(
+      `/coins/transactions?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+    ),
+  /**
+   * `idempotencyKey` is made once per intended send and reused on retries, so a
+   * double-click or a retried request can never send twice.
+   */
+  send: (body: { recipient: string; amount: number; idempotencyKey: string; note?: string }) =>
+    request<{ transaction: CoinTransactionItem; balance: string }>('/coins/send', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 };
 
 export const signalsApi = {

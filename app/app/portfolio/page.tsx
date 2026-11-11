@@ -40,6 +40,7 @@ import {
 } from '@/lib/utils';
 import { UserAvatar } from '@/components/UserAvatar';
 import { signalHref, usd } from '@/components/dashboard/SignalMarketCard';
+import { EcosystemCoinCard } from '@/components/wallet/EcosystemCoinCard';
 
 const PAGE_SIZE = 20;
 
@@ -1023,6 +1024,8 @@ function PortfolioPageInner() {
               )}
             </section>
           </div>
+
+          <EcosystemCoinCard />
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-5">
             <section className="glass-card rounded-2xl overflow-hidden">

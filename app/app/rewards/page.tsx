@@ -27,6 +27,7 @@ import {
   usdToSignalFaceCoins,
 } from '@/lib/utils';
 import { useAuth, useToast } from '@/lib/stores';
+import { formatEcosystemCoins } from '@/components/wallet/EcosystemCoinCard';
 
 const fmtCoins = (value: string | number) =>
   formatSignalFaceCoins(usdToSignalFaceCoins(value));
@@ -213,9 +214,9 @@ export default function RewardsPage() {
       <section id="invite-friends" aria-labelledby="invite-friends-title" className="glass-card rounded-2xl p-6 scroll-mt-20">
         <h2 id="invite-friends-title" className="font-bold text-foreground">Invite friends</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          You earn {commissionPct} of the first Signal purchase by each friend who joins with your link.
-          {referrals?.bonusAmount &&
-            ` Plus ${fmtCoins(referrals.bonusAmount)} when they verify their account.`}
+          {referrals?.referralCoinReward
+            ? `You earn ${formatEcosystemCoins(referrals.referralCoinReward)} when a friend you invite verifies their account, plus ${commissionPct} of their first Signal purchase.`
+            : `You earn ${commissionPct} of the first Signal purchase by each friend who joins with your link.`}
         </p>
 
         <div className="mt-4 flex flex-col sm:flex-row gap-2">
@@ -262,11 +263,11 @@ export default function RewardsPage() {
                     </span>
                   </span>
                   {/* "Earned" only when this person really earned you something:
-                      a commission on their first Signal purchase, or a paid
-                      bonus. Otherwise "Joined", or "Pending" until verified. */}
+                      a commission, Ecosystem Coins, or an old paid bonus.
+                      Otherwise "Joined", or "Pending" until verified. */}
                   <span
                     className={`text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                      person.commission || person.bonusPaid
+                      person.commission || person.coins || person.bonusPaid
                         ? 'bg-emerald-500/15 text-emerald-300'
                         : person.verified
                           ? 'bg-primary/15 text-primary'
@@ -275,7 +276,9 @@ export default function RewardsPage() {
                   >
                     {person.commission
                       ? `Earned ${fmtCoins(person.commission.amount)}`
-                      : person.bonusPaid
+                      : person.coins
+                        ? `Earned ${formatEcosystemCoins(person.coins)}`
+                        : person.bonusPaid
                         ? 'Earned'
                         : person.verified
                           ? 'Joined'
