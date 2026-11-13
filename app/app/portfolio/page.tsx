@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import {
   activityApi,
+  type WalletHolding,
   kycApi,
   walletApi,
   withdrawalsApi,
@@ -41,6 +42,7 @@ import {
 import { UserAvatar } from '@/components/UserAvatar';
 import { signalHref, usd } from '@/components/dashboard/SignalMarketCard';
 import { EcosystemCoinCard } from '@/components/wallet/EcosystemCoinCard';
+import { SendSignalModal } from '@/components/trading/SendSignalModal';
 
 const PAGE_SIZE = 20;
 
@@ -188,6 +190,7 @@ function PortfolioPageInner() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [mode, setMode] = useState<'deposit' | 'withdraw' | 'send' | 'receive'>('deposit');
   const [portfolioTab, setPortfolioTab] = useState<'holdings' | 'balance'>('holdings');
+  const [sendingHolding, setSendingHolding] = useState<WalletHolding | null>(null);
   const [amount, setAmount] = useState('');
   const [paymentCurrency, setPaymentCurrency] = useState('USD');
   const [note, setNote] = useState('');
@@ -742,6 +745,16 @@ function PortfolioPageInner() {
                               })}{' '}
                               shares @ {usd(h.avgBuyPrice)} avg
                             </p>
+                            {h.receivedFrom && h.receivedFrom.length > 0 && (
+                              <p className="text-xs text-primary truncate">
+                                Received from{' '}
+                                {h.receivedFrom
+                                  .slice(0, 2)
+                                  .map((f) => `@${f.username}`)
+                                  .join(', ')}
+                                {h.receivedFrom.length > 2 ? ` +${h.receivedFrom.length - 2} more` : ''}
+                              </p>
+                            )}
                           </Link>
 
                           <div className="text-right flex-shrink-0">
@@ -755,6 +768,17 @@ function PortfolioPageInner() {
                               {pl.toFixed(2)}%
                             </p>
                           </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setSendingHolding(h)}
+                            className="flex-shrink-0 h-9 w-9 sm:w-auto sm:px-3 rounded-full glass-chip inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-foreground hover:brightness-125 transition"
+                            aria-label={`Send ${h.creatorName} Signal`}
+                            title="Send to another user"
+                          >
+                            <Send size={14} />
+                            <span className="hidden sm:inline">Send</span>
+                          </button>
                         </div>
                       );
                     })}
@@ -1121,6 +1145,14 @@ function PortfolioPageInner() {
           </div>
         </>
       )}
+
+      <SendSignalModal
+        holding={sendingHolding}
+        onClose={() => setSendingHolding(null)}
+        onSent={() => {
+          void loadPortfolio().catch(() => undefined);
+        }}
+      />
     </div>
   );
 }

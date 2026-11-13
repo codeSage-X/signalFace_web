@@ -534,6 +534,28 @@ export interface WalletHolding {
   avgBuyPrice: string;
   currentPrice: string;
   currentValue: string;
+  /**
+   * Who sent this user units of the signal, most recent first. Quantities are
+   * everything ever received from that person, which can exceed what is held
+   * now if some was sold or sent on.
+   */
+  receivedFrom?: Array<{ username: string; displayName: string; quantity: string; lastReceivedAt: string | null }>;
+}
+
+export interface SignalTransferResult {
+  transfer: {
+    id: string;
+    signalId: string;
+    signalTitle: string;
+    quantity: string;
+    unitCost: string;
+    note: string | null;
+    sender: { username: string; displayName: string };
+    recipient: { username: string; displayName: string };
+    createdAt: string;
+  };
+  /** What the sender has left of this signal. */
+  remainingQuantity: string;
 }
 
 export interface WalletOverview {
@@ -851,6 +873,16 @@ export const signalsApi = {
     },
   ) =>
     request<SignalPurchaseResult>(`/signals/${encodeURIComponent(id)}/buy`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  /**
+   * Sends units of a signal to another user. `idempotencyKey` is made once per
+   * intended send and reused on retries, so a double-click or a retried
+   * request can never send twice.
+   */
+  send: (id: string, body: { recipient: string; quantity: number; idempotencyKey: string; note?: string }) =>
+    request<SignalTransferResult>(`/signals/${encodeURIComponent(id)}/send`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
