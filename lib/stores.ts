@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 // Type-only, so this does not create a runtime cycle with api.ts (which imports
 // `useAuth` from here).
-import type { ChatMediaUpload, Realm } from './api';
+import type { ChatMediaUpload, LifeInterest, Realm } from './api';
 
 /**
  * Which identity the user is acting as. A creator has two: their personal
@@ -103,6 +103,10 @@ export interface User {
   referralCode?: string;
   /** Topics driving this person's feed ranking. */
   interests?: string[];
+  /** Life Connections interests. */
+  lifeInterests?: LifeInterest[];
+  /** Null until they've been through the Life Connections picker. */
+  lifeInterestsSetAt?: string | null;
   accountStatus?: 'ACTIVE' | 'RESTRICTED' | 'BLOCKED';
   statusReason?: string | null;
   pointsBalance: string;

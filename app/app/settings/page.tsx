@@ -9,6 +9,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPalette, faCog, faSignOut } from '@fortawesome/free-solid-svg-icons';
 import { usersApi, ApiError, type RealmCategory } from '@/lib/api';
 import { InterestPicker } from '@/components/social/InterestPicker';
+import { LifeInterestsSettings } from '@/components/friends/LifeInterestsSettings';
 import { formatSignalFaceCoins, usdToSignalFaceCoins } from '@/lib/utils';
 
 export default function SettingsPage() {
@@ -224,6 +225,9 @@ export default function SettingsPage() {
           </div>
         )}
       </div>
+
+      {/* Life Connections interests — filters Meet People */}
+      <LifeInterestsSettings />
 
       {/* Legal */}
       <div className="glass-card rounded-2xl p-6">

@@ -287,6 +287,10 @@ export interface UserProfile {
   referralCode: string;
   /** Topics this person wants more of. Drives feed ranking. */
   interests: RealmCategory[];
+  /** Life Connections interests — filters Meet People. */
+  lifeInterests?: LifeInterest[];
+  /** Null until they've been through the Life Connections picker once. */
+  lifeInterestsSetAt?: string | null;
   accountStatus: 'ACTIVE' | 'RESTRICTED' | 'BLOCKED';
   statusReason: string | null;
   pointsBalance: string;
@@ -1144,6 +1148,13 @@ export const activityApi = {
 };
 
 /** A person in the followers / following lists. */
+/** What someone is on Life Connections for. Mirrors the API's LifeInterest enum. */
+export type LifeInterest =
+  | 'MEANINGFUL_CONNECTIONS'
+  | 'DATING'
+  | 'LIFE_PARTNER'
+  | 'MARRIAGE_INTENTIONS';
+
 export interface FollowPerson {
   id: string;
   username: string;
@@ -1155,6 +1166,8 @@ export interface FollowPerson {
   followersCount: number;
   /** Whether the viewer follows them — always true in the `following` list. */
   isFollowedByMe: boolean;
+  /** Present on Meet People results. */
+  lifeInterests?: LifeInterest[];
 }
 
 export const usersApi = {
@@ -1193,6 +1206,21 @@ export const usersApi = {
       method: 'PATCH',
       body: JSON.stringify({ interests }),
     }),
+  /** Replaces the viewer's Life Connections interests and marks onboarding done. */
+  updateLifeInterests: (interests: LifeInterest[]) =>
+    request<{ lifeInterests: LifeInterest[]; lifeInterestsSetAt: string }>(
+      '/users/me/life-interests',
+      { method: 'PATCH', body: JSON.stringify({ interests }) },
+    ),
+  /** Meet People: everyone not yet connected, optionally filtered to one interest. */
+  discover: (interest?: LifeInterest | null, cursor?: string | null, limit?: number) => {
+    const params = new URLSearchParams();
+    if (interest) params.set('interest', interest);
+    if (cursor) params.set('cursor', cursor);
+    if (limit) params.set('limit', String(limit));
+    const qs = params.toString();
+    return request<Page<FollowPerson>>(`/users/discover${qs ? `?${qs}` : ''}`);
+  },
   /** Live check for the sign-up form. Advisory — registration is authoritative. */
   usernameAvailable: (username: string) =>
     request<{ username: string; available: boolean; reason: 'taken' | 'invalid' | null }>(

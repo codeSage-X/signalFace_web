@@ -1,94 +1,162 @@
 'use client';
 
-import { ArrowRight, Gem, Heart, HeartHandshake, Search, Users } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { ArrowRight, Heart, Search, Users } from 'lucide-react';
+import { RingsIcon, type LifeFilter } from './lifeInterests';
+
+type IconProps = { className?: string };
 
 type Category = {
+  /** What tapping the card filters Meet People to. */
+  filter: LifeFilter;
   title: string;
   blurb: string;
-  icon: LucideIcon;
-  gradient: string;
+  image: string;
+  icon: (p: IconProps) => React.ReactElement;
+  /** panel colour (bottom half) */
+  panel: string;
+  /** icon bubble + arrow tint */
+  accent: string;
+  /** blurb alignment, as in the design */
+  align: 'left' | 'center';
 };
 
 const CATEGORIES: Category[] = [
   {
+    filter: 'MEANINGFUL_CONNECTIONS',
     title: 'Meaningful Connections',
     blurb: 'Meet people with shared interests.',
-    icon: Users,
-    gradient: 'from-violet-600 to-purple-800',
+    image: '/life-connections/meaningful_connections.png',
+    icon: (p) => <Users {...p} />,
+    panel: 'from-[#7b2ff7] to-[#4b12b8]',
+    accent: 'bg-[#8f45ff]',
+    align: 'left',
   },
   {
+    filter: 'DATING',
     title: 'Dating',
     blurb: 'Explore romantic connections.',
-    icon: Heart,
-    gradient: 'from-pink-500 to-rose-700',
+    image: '/life-connections/dating.png',
+    icon: (p) => <Heart {...p} />,
+    panel: 'from-[#f0329a] to-[#c3127a]',
+    accent: 'bg-[#f552ab]',
+    align: 'center',
   },
   {
+    filter: 'LIFE_PARTNER',
     title: 'Life Partner',
     blurb: 'Find someone for life.',
-    icon: Gem,
-    gradient: 'from-indigo-600 to-violet-800',
+    image: '/life-connections/life_partner.png',
+    icon: (p) => <RingsIcon {...p} />,
+    panel: 'from-[#3b2fe0] to-[#2a1aa8]',
+    accent: 'bg-[#5146f0]',
+    align: 'left',
   },
   {
+    filter: 'MARRIAGE_INTENTIONS',
     title: 'Marriage Intentions',
     blurb: 'Meet your future spouse.',
-    icon: HeartHandshake,
-    gradient: 'from-fuchsia-500 to-pink-700',
+    image: '/life-connections/marriage_intentions.png',
+    icon: (p) => <RingsIcon gem {...p} />,
+    panel: 'from-[#f23a8e] to-[#cf1c74]',
+    accent: 'bg-[#f65aa3]',
+    align: 'center',
   },
   {
+    // Everybody — no interest restriction.
+    filter: 'ALL',
     title: 'Discover People',
     blurb: 'Explore new profiles.',
-    icon: Search,
-    gradient: 'from-blue-600 to-indigo-800',
+    image: '/life-connections/discover_people.png',
+    icon: (p) => <Search {...p} />,
+    panel: 'from-[#2563eb] to-[#1d3fbf]',
+    accent: 'bg-[#3b7bf5]',
+    align: 'center',
   },
 ];
 
-export function LifeConnectionsBanner({ onExplore }: { onExplore: (category: string) => void }) {
+/**
+ * The Life Connections header. The five cards double as the Meet People
+ * filter: one active at a time, Discover People meaning Everybody.
+ */
+export function LifeConnectionsBanner({
+  active,
+  onSelect,
+}: {
+  /** Highlighted card, or null when no filter is on screen (Connected tab). */
+  active: LifeFilter | null;
+  onSelect: (filter: LifeFilter) => void;
+}) {
   return (
     <section className="space-y-4">
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a0b3d] via-[#3b0f6b] to-[#a3197a] p-6 sm:p-8">
-        <Heart
-          aria-hidden
-          className="absolute right-6 top-4 h-24 w-24 sm:h-32 sm:w-32 text-pink-400/20 fill-pink-400/20 rotate-12"
-        />
-        <Heart
-          aria-hidden
-          className="absolute right-32 bottom-2 h-12 w-12 text-pink-300/15 fill-pink-300/15 -rotate-12 hidden sm:block"
-        />
-        <div className="relative flex items-center gap-4">
-          <div className="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-500 to-pink-500 shadow-lg shadow-pink-500/30">
-            <HeartHandshake className="h-8 w-8 sm:h-9 sm:w-9 text-white" />
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold leading-tight text-white">
-            Life <span className="text-pink-400">Connections</span>
-          </h2>
-        </div>
-        <p className="relative mt-4 max-w-xl text-base sm:text-lg font-medium text-white/90">
-          Meet people. Build meaningful relationships. Discover possibilities.
-        </p>
-        <div className="relative mt-3 h-1 w-32 rounded-full bg-gradient-to-r from-pink-500 to-transparent" />
-      </div>
+      {/* Hero — the artwork carries its own title and tagline */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/life-connections/banner.jpg"
+        alt="Life Connections — Meet people. Build meaningful relationships. Discover possibilities."
+        width={2000}
+        height={667}
+        className="block w-full h-auto rounded-2xl"
+      />
 
-      {/* Categories */}
-      <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-3 lg:grid-cols-5 sm:overflow-visible">
-        {CATEGORIES.map(({ title, blurb, icon: Icon, gradient }) => (
+      {/* Categories — tall portrait cards */}
+      <div role="radiogroup" aria-label="Filter people by interest" className="flex gap-3 sm:gap-4 overflow-x-auto pb-1 snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible">
+        {CATEGORIES.map(({ filter, title, blurb, image, icon: Icon, panel, accent, align }) => {
+          const isActive = active === filter;
+          return (
           <button
             key={title}
             type="button"
-            onClick={() => onExplore(title)}
-            className={`group relative flex min-w-[160px] flex-col items-start rounded-2xl bg-gradient-to-br ${gradient} p-4 text-left text-white shadow-md transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70`}
+            role="radio"
+            aria-checked={isActive}
+            onClick={() => onSelect(filter)}
+            className={`group relative aspect-[3/5] w-[200px] sm:w-[220px] lg:w-auto shrink-0 snap-start overflow-hidden rounded-[20px] text-white transition hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 ${
+              isActive
+                ? '-translate-y-1 ring-[3px] ring-white/90 shadow-[0_0_28px_rgba(190,120,255,0.75)]'
+                : 'ring-1 ring-white/25 shadow-[0_0_18px_rgba(140,90,255,0.35)] hover:shadow-[0_0_26px_rgba(160,110,255,0.55)]'
+            }`}
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white/20 ring-1 ring-white/30">
-              <Icon className="h-5 w-5" />
+            {/* Background photo */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={image}
+              alt=""
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-cover object-top transition duration-500 group-hover:scale-105"
+            />
+
+            {/* Colour panel — bottom half, hard top edge */}
+            <div className={`absolute inset-x-0 bottom-0 top-1/2 bg-gradient-to-b ${panel} opacity-[0.93]`} />
+
+            {/* Icon bubble straddling the edge */}
+            <span
+              className={`absolute left-1/2 top-1/2 flex h-[22%] aspect-square max-h-[76px] -translate-x-1/2 -translate-y-[45%] items-center justify-center rounded-full ${accent} bg-opacity-90 shadow-[0_0_16px_rgba(255,255,255,0.25)] ring-[3px] ring-white/15`}
+            >
+              <Icon className="h-[46%] w-[46%]" />
             </span>
-            <span className="mt-3 font-bold leading-tight">{title}</span>
-            <span className="mt-1 pr-8 text-xs text-white/85">{blurb}</span>
-            <span className="absolute bottom-3 right-3 flex h-7 w-7 items-center justify-center rounded-full bg-white/25 transition group-hover:bg-white/40">
-              <ArrowRight className="h-4 w-4" />
+
+            {/* Text */}
+            <div className="absolute inset-x-0 bottom-0 top-[63%] flex flex-col px-4 pb-4">
+              <span className="text-center text-[17px] sm:text-[19px] font-bold leading-[1.15] tracking-tight">
+                {title}
+              </span>
+              <span
+                className={`mt-auto pr-9 text-[13px] sm:text-[14px] leading-snug text-white/90 ${
+                  align === 'center' ? 'text-center pl-9' : 'text-left'
+                }`}
+              >
+                {blurb}
+              </span>
+            </div>
+
+            {/* Arrow */}
+            <span
+              className={`absolute bottom-3.5 right-3.5 flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full ${accent} ring-1 ring-white/30 shadow-md transition group-hover:brightness-125`}
+            >
+              <ArrowRight className="h-[18px] w-[18px]" strokeWidth={2.5} />
             </span>
           </button>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

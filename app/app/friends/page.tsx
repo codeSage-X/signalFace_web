@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, UserPlus, UserCheck, Users, Heart } from 'lucide-react';
 import { useAuth, useToast } from '@/lib/stores';
@@ -8,6 +8,8 @@ import { usersApi, type FollowPerson } from '@/lib/api';
 import { UserAvatar } from '@/components/UserAvatar';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { LifeConnectionsBanner } from '@/components/friends/LifeConnectionsBanner';
+import { type LifeFilter } from '@/components/friends/lifeInterests';
+import { LifeInterestsOnboarding } from '@/components/friends/LifeInterestsOnboarding';
 
 type Tab = 'friends' | 'discover';
 
@@ -16,98 +18,148 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'discover', label: 'Meet People' },
 ];
 
+type DiscoverPage = { items: FollowPerson[]; cursor: string | null; loaded: boolean };
+const EMPTY_PAGE: DiscoverPage = { items: [], cursor: null, loaded: false };
+
 export default function FriendsPage() {
-  const { isAuthenticated, setAuthModalOpen } = useAuth();
+  const { isAuthenticated, setAuthModalOpen, updateUser } = useAuth();
   const { addToast } = useToast();
 
-  const [tab, setTab] = useState<Tab>('friends');
-  const [lists, setLists] = useState<Record<Tab, FollowPerson[]>>({
-    friends: [],
-    discover: [],
-  });
-  const [cursors, setCursors] = useState<Record<Tab, string | null>>({
-    friends: null,
-    discover: null,
-  });
-  const [loaded, setLoaded] = useState<Record<Tab, boolean>>({
-    friends: false,
-    discover: false,
-  });
+  const [tab, setTab] = useState<Tab>('discover');
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Connected = mutual follows.
+  const [connected, setConnected] = useState<FollowPerson[]>([]);
+  const [connectedLoaded, setConnectedLoaded] = useState(false);
+
+  // Meet People, cached per filter so flipping between them is instant.
+  const [filter, setFilter] = useState<LifeFilter>('ALL');
+  const [discover, setDiscover] = useState<Partial<Record<LifeFilter, DiscoverPage>>>({});
+  const activeFilter = useRef<LifeFilter>('ALL');
+
   const [loading, setLoading] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
 
-  const fetchPage = useCallback(
-    async (which: Tab, cursor?: string | null) => {
-      setLoading(true);
-      try {
-        if (which === 'discover') {
-          // Get suggestions for "Meet People"
-          const res = await usersApi.suggestions(50);
-          setCursors((prev) => ({ ...prev, [which]: null }));
-          setLists((prev) => ({
-            ...prev,
-            [which]: res.items,
-          }));
-          setLoaded((prev) => ({ ...prev, [which]: true }));
-          setLoading(false);
-          return;
-        } else {
-          // Friends = mutual follows
-          // Fetch following with pagination
-          const allFollowing: FollowPerson[] = [];
-          let followingCursor: string | null = null;
-          let pageCount = 0;
-          
-          do {
-            const followingRes = await usersApi.following(followingCursor);
-            allFollowing.push(...followingRes.items);
-            followingCursor = followingRes.nextCursor;
-            pageCount++;
-          } while (followingCursor && pageCount < 5); // Limit to 5 pages max
-          
-          // Fetch followers with pagination
-          const allFollowers: FollowPerson[] = [];
-          let followersCursor: string | null = null;
-          pageCount = 0;
-          
-          do {
-            const followersRes = await usersApi.followers(followersCursor);
-            allFollowers.push(...followersRes.items);
-            followersCursor = followersRes.nextCursor;
-            pageCount++;
-          } while (followersCursor && pageCount < 5); // Limit to 5 pages max
-          
-          // Calculate mutual friends
-          const followersSet = new Set(allFollowers.map((f) => f.id));
-          const mutualFriends = allFollowing.filter((f) => followersSet.has(f.id));
-          
-          setLists((prev) => ({
-            ...prev,
-            [which]: mutualFriends,
-          }));
-          setCursors((prev) => ({ ...prev, [which]: null }));
-          setLoaded((prev) => ({ ...prev, [which]: true }));
-          setLoading(false);
-          return;
-        }
-      } catch (err) {
-        addToast({
-          message: err instanceof Error ? err.message : 'Could not load that list.',
-          type: 'error',
-          duration: 4000,
-        });
-      } finally {
-        setLoaded((prev) => ({ ...prev, [which]: true }));
-        setLoading(false);
-      }
-    },
+  const showError = useCallback(
+    (err: unknown, fallback: string) =>
+      addToast({
+        message: err instanceof Error ? err.message : fallback,
+        type: 'error',
+        duration: 4000,
+      }),
     [addToast],
   );
 
+  // First visit: ask for Life Connections interests once. Reads the live
+  // profile, since the stored session may predate the field.
   useEffect(() => {
-    if (!isAuthenticated || loaded[tab]) return;
-    fetchPage(tab);
-  }, [isAuthenticated, tab, loaded, fetchPage]);
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    usersApi
+      .getMe()
+      .then((me) => {
+        if (cancelled) return;
+        updateUser({
+          lifeInterests: me.lifeInterests ?? [],
+          lifeInterestsSetAt: me.lifeInterestsSetAt ?? null,
+        });
+        if (!me.lifeInterestsSetAt) setShowOnboarding(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, updateUser]);
+
+  const fetchConnected = useCallback(async () => {
+    setLoading(true);
+    try {
+      const collect = async (fetcher: typeof usersApi.following) => {
+        const all: FollowPerson[] = [];
+        let cursor: string | null = null;
+        let pages = 0;
+        do {
+          const res = await fetcher(cursor);
+          all.push(...res.items);
+          cursor = res.nextCursor;
+          pages++;
+        } while (cursor && pages < 5); // 5 pages max
+        return all;
+      };
+      const [following, followers] = await Promise.all([
+        collect(usersApi.following),
+        collect(usersApi.followers),
+      ]);
+      const followerIds = new Set(followers.map((f) => f.id));
+      setConnected(following.filter((f) => followerIds.has(f.id)));
+    } catch (err) {
+      showError(err, 'Could not load your connections.');
+    } finally {
+      setConnectedLoaded(true);
+      setLoading(false);
+    }
+  }, [showError]);
+
+  const fetchDiscover = useCallback(
+    async (which: LifeFilter, cursor?: string | null) => {
+      setLoading(true);
+      try {
+        const res = await usersApi.discover(which === 'ALL' ? null : which, cursor, 24);
+        setDiscover((prev) => {
+          const before = cursor ? prev[which] ?? EMPTY_PAGE : EMPTY_PAGE;
+          // Keyset pages never overlap, but guard anyway so a double-fire can't duplicate.
+          const seen = new Set(before.items.map((p) => p.id));
+          return {
+            ...prev,
+            [which]: {
+              items: [...before.items, ...res.items.filter((p) => !seen.has(p.id))],
+              cursor: res.nextCursor,
+              loaded: true,
+            },
+          };
+        });
+      } catch (err) {
+        showError(err, 'Could not load people.');
+        setDiscover((prev) => ({ ...prev, [which]: { ...(prev[which] ?? EMPTY_PAGE), loaded: true } }));
+      } finally {
+        // Only clear the spinner for the filter still on screen.
+        if (activeFilter.current === which) setLoading(false);
+      }
+    },
+    [showError],
+  );
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (tab === 'friends' && !connectedLoaded) fetchConnected();
+    if (tab === 'discover' && !discover[filter]?.loaded) fetchDiscover(filter);
+  }, [isAuthenticated, tab, filter, connectedLoaded, discover, fetchConnected, fetchDiscover]);
+
+  const changeFilter = (next: LifeFilter) => {
+    activeFilter.current = next;
+    setLoading(false);
+    setFilter(next);
+  };
+
+  const page = discover[filter] ?? EMPTY_PAGE;
+  const people = tab === 'friends' ? connected : page.items;
+  const isLoaded = tab === 'friends' ? connectedLoaded : page.loaded;
+  const nextCursor = tab === 'discover' ? page.cursor : null;
+
+  // Continuous scroll: fetch the next page as the end of the list comes into view.
+  const sentinel = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || !nextCursor || loading) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) fetchDiscover(filter, nextCursor);
+      },
+      { rootMargin: '400px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [nextCursor, loading, filter, fetchDiscover]);
 
   const handleToggleFollow = async (person: FollowPerson) => {
     if (!isAuthenticated) {
@@ -115,52 +167,52 @@ export default function FriendsPage() {
       return;
     }
 
-    setPending(person.username);
-    const flip = (list: FollowPerson[]) =>
-      list.map((p) =>
-        p.id === person.id ? { ...p, isFollowedByMe: !person.isFollowedByMe } : p,
-      );
-    setLists((prev) => ({
-      ...prev,
-      friends: flip(prev.friends),
-      discover: flip(prev.discover),
-    }));
+    const setFollowed = (value: boolean) => {
+      const flip = (list: FollowPerson[]) =>
+        list.map((p) => (p.id === person.id ? { ...p, isFollowedByMe: value } : p));
+      setConnected(flip);
+      setDiscover((prev) => {
+        const next: typeof prev = {};
+        for (const [k, v] of Object.entries(prev)) {
+          if (v) next[k as LifeFilter] = { ...v, items: flip(v.items) };
+        }
+        return next;
+      });
+    };
 
+    setPending(person.username);
+    setFollowed(!person.isFollowedByMe);
     try {
       await usersApi.toggleFollow(person.username);
     } catch (err) {
-      const revert = (list: FollowPerson[]) =>
-        list.map((p) =>
-          p.id === person.id ? { ...p, isFollowedByMe: person.isFollowedByMe } : p,
-        );
-      setLists((prev) => ({
-        friends: revert(prev.friends),
-        discover: revert(prev.discover),
-      }));
-      addToast({
-        message: err instanceof Error ? err.message : 'That did not go through.',
-        type: 'error',
-        duration: 4000,
-      });
+      setFollowed(person.isFollowedByMe);
+      showError(err, 'That did not go through.');
     } finally {
       setPending(null);
     }
   };
 
-  const people = lists[tab];
-  const showEmpty = loaded[tab] && !loading && people.length === 0;
+  const showEmpty = isLoaded && !loading && people.length === 0;
   const isGridView = tab === 'discover';
 
   return (
     <div className="max-w-6xl mx-auto py-6 px-4 sm:px-6">
-      <LifeConnectionsBanner onExplore={() => setTab('discover')} />
+      {showOnboarding && <LifeInterestsOnboarding onDone={() => setShowOnboarding(false)} />}
+
+      <LifeConnectionsBanner
+        active={tab === 'discover' ? filter : null}
+        onSelect={(next) => {
+          setTab('discover');
+          changeFilter(next);
+        }}
+      />
 
       <p className="mt-6 text-sm text-muted-foreground">
-        {tab === 'friends' && 'People who are following you and you are following back'}
-        {tab === 'discover' && 'Discover people you might want to follow'}
+        {tab === 'friends' && 'People you follow who follow you back'}
+        {tab === 'discover' && 'People you haven\'t connected with yet'}
       </p>
 
-      <div className="flex gap-2 sm:gap-4 mt-6 mb-6 border-b border-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex gap-2 sm:gap-4 mt-4 mb-6 border-b border-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -172,7 +224,7 @@ export default function FriendsPage() {
             }`}
           >
             {t.label}
-            {loaded[t.key] && t.key !== 'discover' && ` (${lists[t.key].length})`}
+            {t.key === 'friends' && connectedLoaded && ` (${connected.length})`}
           </button>
         ))}
       </div>
@@ -180,9 +232,9 @@ export default function FriendsPage() {
       {!isAuthenticated ? (
         <div className="glass-card rounded-2xl p-8 sm:p-10 text-center">
           <Users size={28} className="mx-auto text-muted-foreground" />
-          <p className="mt-3 font-semibold text-card-foreground">Sign in to see your friends</p>
+          <p className="mt-3 font-semibold text-card-foreground">Sign in to see your connections</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Your friends and connections live on your account.
+            Your connections live on your account.
           </p>
           <button
             onClick={() => setAuthModalOpen(true)}
@@ -191,7 +243,7 @@ export default function FriendsPage() {
             Sign in
           </button>
         </div>
-      ) : !loaded[tab] && loading ? (
+      ) : !isLoaded ? (
         <div className="flex justify-center py-16">
           <Loader2 size={22} className="animate-spin text-muted-foreground" />
         </div>
@@ -200,35 +252,36 @@ export default function FriendsPage() {
           <Users size={28} className="mx-auto text-muted-foreground" />
           <p className="mt-3 font-semibold text-card-foreground">
             {tab === 'friends' && 'No connections yet'}
-            {tab === 'discover' && 'No suggestions available'}
+            {tab === 'discover' &&
+              (filter === 'ALL' ? 'No one new to meet right now' : 'No people found for this interest yet.')}
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {tab === 'friends' && 'Follow people and they will show up here if they follow you back.'}
-            {tab === 'discover' && 'Check back later for new suggestions.'}
-          </p>
-          <Link
-            href="/app/creators"
-            className="inline-block mt-5 px-5 py-2.5 rounded-xl brand-gradient text-white text-sm font-semibold hover:brightness-110 transition"
-          >
-            Browse creators
-          </Link>
+          {tab === 'friends' && (
+            <>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Follow people and they will show up here if they follow you back.
+              </p>
+              <button
+                onClick={() => setTab('discover')}
+                className="inline-block mt-5 px-5 py-2.5 rounded-xl brand-gradient text-white text-sm font-semibold hover:brightness-110 transition"
+              >
+                Meet people
+              </button>
+            </>
+          )}
+          {tab === 'discover' && filter !== 'ALL' && (
+            <button
+              onClick={() => changeFilter('ALL')}
+              className="inline-block mt-5 px-5 py-2.5 rounded-xl glass-chip text-sm font-medium text-foreground hover:brightness-125 transition"
+            >
+              Show everybody
+            </button>
+          )}
         </div>
       ) : isGridView ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {people.map((person) => (
-            <FriendCard
-              key={person.id}
-              person={person}
-              onToggleFollow={handleToggleFollow}
-              pending={pending === person.username}
-            />
-          ))}
-        </div>
-      ) : (
         <>
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {people.map((person) => (
-              <FriendListItem
+              <FriendCard
                 key={person.id}
                 person={person}
                 onToggleFollow={handleToggleFollow}
@@ -236,19 +289,21 @@ export default function FriendsPage() {
               />
             ))}
           </div>
-
-          {cursors[tab] && (
-            <div className="flex justify-center mt-6">
-              <button
-                onClick={() => fetchPage(tab, cursors[tab])}
-                disabled={loading}
-                className="px-5 py-2.5 rounded-xl glass-chip text-sm font-medium text-foreground hover:brightness-125 transition disabled:opacity-50"
-              >
-                {loading ? 'Loading…' : 'Load more'}
-              </button>
-            </div>
-          )}
+          <div ref={sentinel} className="flex justify-center py-6">
+            {loading && nextCursor && <Loader2 size={20} className="animate-spin text-muted-foreground" />}
+          </div>
         </>
+      ) : (
+        <div className="space-y-3">
+          {people.map((person) => (
+            <FriendListItem
+              key={person.id}
+              person={person}
+              onToggleFollow={handleToggleFollow}
+              pending={pending === person.username}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
