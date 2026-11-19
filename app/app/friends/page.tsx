@@ -7,12 +7,13 @@ import { useAuth, useToast } from '@/lib/stores';
 import { usersApi, type FollowPerson } from '@/lib/api';
 import { UserAvatar } from '@/components/UserAvatar';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
+import { LifeConnectionsBanner } from '@/components/friends/LifeConnectionsBanner';
 
 type Tab = 'friends' | 'discover';
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'friends', label: 'Friends' },
-  { key: 'discover', label: 'Find Friends' },
+  { key: 'friends', label: 'Connected' },
+  { key: 'discover', label: 'Meet People' },
 ];
 
 export default function FriendsPage() {
@@ -40,7 +41,7 @@ export default function FriendsPage() {
       setLoading(true);
       try {
         if (which === 'discover') {
-          // Get suggestions for "Find Friends"
+          // Get suggestions for "Meet People"
           const res = await usersApi.suggestions(50);
           setCursors((prev) => ({ ...prev, [which]: null }));
           setLists((prev) => ({
@@ -152,8 +153,9 @@ export default function FriendsPage() {
 
   return (
     <div className="max-w-6xl mx-auto py-6 px-4 sm:px-6">
-      <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Friends &amp; Discover</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <LifeConnectionsBanner onExplore={() => setTab('discover')} />
+
+      <p className="mt-6 text-sm text-muted-foreground">
         {tab === 'friends' && 'People who are following you and you are following back'}
         {tab === 'discover' && 'Discover people you might want to follow'}
       </p>
@@ -197,7 +199,7 @@ export default function FriendsPage() {
         <div className="glass-card rounded-2xl p-8 sm:p-10 text-center">
           <Users size={28} className="mx-auto text-muted-foreground" />
           <p className="mt-3 font-semibold text-card-foreground">
-            {tab === 'friends' && 'No friends yet'}
+            {tab === 'friends' && 'No connections yet'}
             {tab === 'discover' && 'No suggestions available'}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -301,7 +303,7 @@ function FriendListItem({
   );
 }
 
-// Grid card component for Find Friends
+// Grid card component for Meet People
 function FriendCard({
   person,
   onToggleFollow,
